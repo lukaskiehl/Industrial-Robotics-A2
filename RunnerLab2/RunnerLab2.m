@@ -9,6 +9,10 @@ close all;
 balls = RobotBalls;
 KR = KR6R700CR;
 steps = 30;
+KR.model.teach();
+
+
+input('press enter to pickup ball')
 
 %1.0 Pick up ball
 qpasser1 = [ 0    2.5598    0.4145         0         0         0];
@@ -21,6 +25,7 @@ qMatrix = nan(steps,6);
      end
 for i = 1:steps
         KR.model.animate(qMatrix(i,:));
+        %pause(0.2);
         drawnow();
 end
 % 1.1 Prepare to throw the ball
@@ -35,6 +40,7 @@ for i = 1:steps
         KR.model.animate(qMatrix(i,:));
         balls.ballModel{1}.base = KR.model.fkine(qMatrix(i,:));
         balls.ballModel{1}.animate(0);
+        %pause(0.2);
         drawnow();
 end
 % 1.2 Action to throw the ball
@@ -47,6 +53,7 @@ qMatrix = nan(steps/2,6);
      end
 for i = 1:steps/2
         KR.model.animate(qMatrix(i,:));
+        %pause(0.2); 
 
         if steps/4 >= i
           balls.ballModel{1}.base = KR.model.fkine(qMatrix(i,:));
@@ -67,4 +74,11 @@ for i = 1:steps/2
         drawnow();
 
 end
+
+%% Collision check 
+
+
+
+
+
 
