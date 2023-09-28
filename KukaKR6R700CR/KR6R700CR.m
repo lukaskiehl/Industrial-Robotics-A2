@@ -1,6 +1,5 @@
 classdef KR6R700CR < RobotBaseClass
-    %% Linear UR3 on Rail
-    % Created from LinearUR5 and UR3 robots in UTS toolbox
+    %% Kuka Robot KR6R700CR
 
     properties(Access = public)              
         plyFileNameStem = 'KukaKR6R700CR'; % Load in ply files. Ply files from Kim (2023)
@@ -35,66 +34,9 @@ function self = KR6R700CR(baseTr) % Constructor to create instance (model)
             % link(5).offset = -pi/2; 
 
             self.model = SerialLink(link,'name',self.name); % Create robot
+            
             % Call robot using robot.model
+           
+            end
         end
-     end
-  end
-
-% % Run Code
-% %Load Environment
-% balls = RobotBalls
-% KR = KR6R700CR
-% steps = 30;
-% 
-% %1.0 Pick up ball
-% qpasser1 = [ 0    2.5598    0.4145         0         0         0];
-% q1 = zeros(1,6);
-% q2 = KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
-% s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-% qMatrix = nan(steps,6);
-%      for i = 1:steps
-%         qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-%      end
-% for i = 1:steps
-%         KR.model.animate(qMatrix(i,:));
-%         drawnow();
-% end
-% % 1.1 Prepare to throw the ball
-% q1 = q2;
-% q2 = [1.2363    0.0818   -2.0944    0.0000   -0.0122    0.0000];
-% s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-% qMatrix = nan(steps,6);
-%      for i = 1:steps
-%         qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-%      end
-% for i = 1:steps
-%         KR.model.animate(qMatrix(i,:));
-%         balls.ballModel{1}.base = KR.model.fkine(qMatrix(i,:));
-%         balls.ballModel{1}.animate(0);
-%         drawnow();
-% end
-% % 1.2 Action to throw the ball
-% q1 = q2;
-% q2 = [ 1.2363    2.8162   -0.7898         0   -0.0122   -1.5272];
-% s = lspb(0,1,steps/2); % use trapezoidal velocity method from Lab 4.1
-% qMatrix = nan(steps/2,6);
-%      for i = 1:steps/2
-%         qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-%      end
-% for i = 1:steps/2
-%         KR.model.animate(qMatrix(i,:));
-% 
-%         if steps/4 >= i
-%           balls.ballModel{1}.base = KR.model.fkine(qMatrix(i,:));
-%           balls.ballModel{1}.animate(0);
-%           drawnow();
-%           %if i == steps/4
-%               ballStart = KR.model.fkine(qMatrix(steps/4,:))
-%           %end
-%         end
-%         drawnow();
-% 
-% end
-
-% 
-% 
+end
