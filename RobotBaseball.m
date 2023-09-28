@@ -60,7 +60,6 @@ classdef RobotBaseball < handle
         balls = RobotBalls;
         steps = 30;
         
-        input('press enter to pickup ball')
   
         %1.0 Pick up ball
         qpasser1 = [ 0    2.5598    0.4145         0         0         0];
