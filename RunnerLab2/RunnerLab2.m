@@ -15,6 +15,8 @@ steps = 30;
 UR3StartPos = transl(-5,0.5,0)*trotz(-pi/2);
 UR3 = UR3Batter(UR3StartPos);
 ballTransl = transl(-0.2,0,-0);
+ballHit = transl(0.2,-0.1,0.15);
+hit1Flag = 0;
 
 %1.0 Pick up ball
 qpasser1 = [ 0    2.5598    0.4145         0         0         0];
@@ -81,31 +83,33 @@ for i = 1:steps
         drawnow();
 
 end
+
+urq1 = UR3.model.getpos();
+urq2 = UR3.model.ikcon(transl(-5,0,0.7466)*trotx(pi/2)*trotz(pi/2));
+
+s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+qMatrix = nan(steps,6);
+for i = 1:steps
+    qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+end
 for i = 1:steps
     ballXYZ = balls.ballModel{1}.base.T;
-    
-    ballXYZ2 = balls.ballModel{1}.base.T;
-    ballXYZ2(1,4) = -5;
-
-    urq1 = UR3.model.getpos();
-    urq2 = UR3.model.ikcon(ballXYZ2*trotx(pi/2)*trotz(pi/2));
-
-    s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-    qMatrix = nan(steps,6);
-    for i = 1:steps
-            qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
-    end
-    
-    for i = 1:steps
-            UR3.model.animate(qMatrix(i,:));
-            drawnow();
-            balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-            balls.ballModel{1}.animate(0);
-            drawnow();
+    UR3.model.animate(qMatrix(i,:));
+    drawnow();
+    if ballXYZ(1,4) >= -5 && hit1Flag == 0
+        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+        balls.ballModel{1}.animate(0);
+        drawnow();
+    else
+        hit1Flag = 1;
+        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+        balls.ballModel{1}.animate(0);
+        drawnow();
     end
 end
 
-    
-    
+
+
+
 
 
