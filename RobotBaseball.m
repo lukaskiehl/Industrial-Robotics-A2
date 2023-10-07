@@ -3,12 +3,14 @@ classdef RobotBaseball < handle
     %   Detailed explanation goes here
 
     properties
-        % KR = KR6R700CR
+       
         KR
         KRJointAngles
         UR
         URJointAngles
         
+        EnvironmentObjects
+
     end
 
     methods
@@ -22,8 +24,9 @@ classdef RobotBaseball < handle
             hold on;
             self.BuildField();
             self.BuildRobots();
+            self.BuildPeople();
             
-            
+
              input('press enter to play baseball')
             self.PitchBall()
 
@@ -31,22 +34,21 @@ classdef RobotBaseball < handle
 
         %%
         function BuildField(self)
-            surf([-1.5,-1.5;0.5,0.5]*5 ...
+            surf([-1,-1;1,1]*5 ...
                 ,[-1,1;-1,1]*5 ...
                 ,[0,0;0,0] ...
                 ,'CData',imread('baseball_field_1.jpg') ...
                 ,'FaceColor','texturemap');
-            
         end
         %%
         function BuildRobots(self)
             hold on;
-            baseTransformKR6R700C = transl(-3,0,0);
+            baseTransformKR6R700C = transl(-2.3,0,0);
             self.KR = KR6R700CR(baseTransformKR6R700C); %store Kuka Robot in the 'KR' robot property.
             self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
             self.KR.model.animate(self.KRJointAngles); %Draw the robot
             
-            baseTransformUR3 = transl(1.5,0,0);
+            baseTransformUR3 = transl(4,0,0);
             self.UR = UR3(baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
@@ -54,12 +56,56 @@ classdef RobotBaseball < handle
             % self.KR.model.teach();
             % self.UR.model.teach();
         end
+
+        %%
+        function BuildPeople(self)
+
+            hold on;
+            person_1 = PlaceObject('personMaleCasual.ply', [0, 0, 0.5]);
+            verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
+            verts(:, 1:3) = verts(:, 1:3) * 0.33; %scale 
+            set(person_1, 'Vertices', verts(:, 1:3));
+
+            self.AddEnvironmentObject('Person', [0, 0, 0.5], 0.5);
+
+            person_2 = PlaceObject('personMaleCasual.ply', [1, 1, 0.5]); % Example position, modify as needed
+            verts = [get(person_2, 'Vertices'), ones(size(get(person_2, 'Vertices'), 1), 1)];
+            verts(:, 1:3) = verts(:, 1:3) * 0.33; %scale 
+            set(person_2, 'Vertices', verts(:, 1:3));
+        
+            self.AddEnvironmentObject('Person', [1, 1, 0.5], 0.5);
+           
+        end
+
+        %%
+        function AddEnvironmentObject(self, type, position, radius)
+            objInfo = struct();
+            objInfo.Type = type;
+            objInfo.Position = position;
+            objInfo.Radius = radius;
+            
+            if isempty(self.EnvironmentObjects)
+                self.EnvironmentObjects = objInfo;
+            else
+                self.EnvironmentObjects(end+1) = objInfo;
+            end
+            fprintf('Current objects in the environment:\n');
+            for i = 1:length(self.EnvironmentObjects)
+                fprintf('Object %d:\n', i);
+                fprintf('\tType: %s\n', self.EnvironmentObjects(i).Type);
+                fprintf('\tPosition: [%f, %f, %f]\n', self.EnvironmentObjects(i).Position(1), ...
+                                                      self.EnvironmentObjects(i).Position(2), ...
+                                                      self.EnvironmentObjects(i).Position(3));
+                fprintf('\tRadius: %f\n', self.EnvironmentObjects(i).Radius);
+            end
+        end
+
         %%
        function PitchBall(self)
             
         balls = RobotBalls;
         steps = 30;
-        
+       
   
         %1.0 Pick up ball
         qpasser1 = [ 0    2.5598    0.4145         0         0         0];
