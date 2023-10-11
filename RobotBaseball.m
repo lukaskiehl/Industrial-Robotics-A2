@@ -25,17 +25,16 @@ classdef RobotBaseball < handle
             self.BuildField();
             self.BuildRobots();
             self.BuildPeople();
+            input('press enter to play baseball')
             
-
-             input('press enter to play baseball')
             self.PitchBall()
 
         end
 
         %%
         function BuildField(self)
-            surf([-1,-1;1,1]*5 ...
-                ,[-1,1;-1,1]*5 ...
+            surf([-1,-1;1,1]*15 ...
+                ,[-1,1;-1,1]*15 ...
                 ,[0,0;0,0] ...
                 ,'CData',imread('baseball_field_1.jpg') ...
                 ,'FaceColor','texturemap');
@@ -43,15 +42,17 @@ classdef RobotBaseball < handle
         %%
         function BuildRobots(self)
             hold on;
-            baseTransformKR6R700C = transl(-2.3,0,0);
+            baseTransformKR6R700C = transl(-1,0,0.2);
             self.KR = KR6R700CR(baseTransformKR6R700C); %store Kuka Robot in the 'KR' robot property.
             self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
             self.KR.model.animate(self.KRJointAngles); %Draw the robot
             
-            baseTransformUR3 = transl(4,0,0);
+            baseTransformUR3 = transl(10.5,0,0);
             self.UR = UR3(baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
+
+            % self.KR.model.links
            
             % self.KR.model.teach();
             % self.UR.model.teach();
@@ -61,19 +62,21 @@ classdef RobotBaseball < handle
         function BuildPeople(self)
 
             hold on;
-            person_1 = PlaceObject('personMaleCasual.ply', [0, 0, 0.5]);
+            person_1_Pos = [-2, 0, 0]; 
+            person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
             verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
-            verts(:, 1:3) = verts(:, 1:3) * 0.33; %scale 
+            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
             set(person_1, 'Vertices', verts(:, 1:3));
 
-            self.AddEnvironmentObject('Person', [0, 0, 0.5], 0.5);
-
-            person_2 = PlaceObject('personMaleCasual.ply', [1, 1, 0.5]); % Example position, modify as needed
+            self.AddEnvironmentObject('Person', person_1_Pos, 1);
+            
+            person_2_Pos = [0, 0, 0];
+            person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
             verts = [get(person_2, 'Vertices'), ones(size(get(person_2, 'Vertices'), 1), 1)];
-            verts(:, 1:3) = verts(:, 1:3) * 0.33; %scale 
+            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
             set(person_2, 'Vertices', verts(:, 1:3));
         
-            self.AddEnvironmentObject('Person', [1, 1, 0.5], 0.5);
+            self.AddEnvironmentObject('Person', person_2_Pos, 1);
            
         end
 
@@ -106,7 +109,7 @@ classdef RobotBaseball < handle
         balls = RobotBalls;
         steps = 30;
        
-  
+        pause(5);
         %1.0 Pick up ball
         qpasser1 = [ 0    2.5598    0.4145         0         0         0];
         q1 = zeros(1,6);
@@ -118,9 +121,10 @@ classdef RobotBaseball < handle
              end
         
        
-        checkGroundCollision(self,self.KR,qMatrix);
+        
         for i = 1:steps
                 self.KR.model.animate(qMatrix(i,:));
+                self.CheckCollision(self.KR);
                 %pause(0.2);
                 drawnow();
         end
@@ -134,7 +138,7 @@ classdef RobotBaseball < handle
              for i = 1:steps
                 qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
              end
-        checkGroundCollision(self,self.KR,qMatrix);
+       
         for i = 1:steps
                 self.KR.model.animate(qMatrix(i,:));
                 
@@ -153,7 +157,7 @@ classdef RobotBaseball < handle
              for i = 1:steps/2
                 qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
              end
-        checkGroundCollision(self,self.KR,qMatrix);
+        
         for i = 1:steps/2
                 self.KR.model.animate(qMatrix(i,:));
                 %pause(0.2); 
@@ -178,28 +182,59 @@ classdef RobotBaseball < handle
         end
        end
 
-       %% Stops program if any joints/end effector get closer than given tolerance to the ground
-       function checkGroundCollision(self, robot, qMatrix)
+   %% GetLinkPoses
+        function [ transforms ] = GetLinkPoses(self, robot)
+            q = robot.model.getpos();
+            links = robot.model.links;
+            transforms = zeros(4, 4, length(links) + 1);
+            transforms(:,:,1) = robot.model.base;
             
-           % ill use this later to pass information to check collisions
-           %Assumption of method will be:
-                %Get array of current stored obstacles.
-                %Check the joint trajectory is clear.
-                %If not, generate a new joint trajectory around obstacle to
-                %some level of tolerance.
-            
-                tolerance = 0.01; % 
+            %from LAB 5, get transform of each link
+            for i = 1:length(links)
+                L = links(1,i);
+                
+                current_transform = transforms(:,:, i);
+                
+                current_transform = current_transform * trotz(q(1,i) + L.offset) * ...
+                transl(0,0, L.d) * transl(L.a,0,0) * trotx(L.alpha);
+                transforms(:,:,i + 1) = current_transform;
 
-            %i will use getpos after to check each joint position
-            for i = 1:size(qMatrix, 1)
-                T = robot.model.fkine(qMatrix(i,:)).T;
+                % position = current_transform(1:3, 4);  % get translation part of the transform
+                % fprintf('Link %d position: x = %.2f, y = %.2f, z = %.2f\n', i, position(1), position(2), position(3));
+            end
+        end
+
+        %% Check collisions
+        function collisionDetected = CheckCollision(self, robot)
+            % get the transforms of all robot links
+            transforms = self.GetLinkPoses(robot);
+            
+            collisionDetected = false;
+            
+            
+            for i = 1:size(transforms, 3)
+                linkPos = transforms(1:3, 4, i); %loop through each robot link getting position
                 
-                zPosEndEffector = T(3, 4, end); %also cehck end effector pos
-                
-                fprintf('At joint config %d, the end effector is %f units from the ground.\n', i, zPosEndEffector);
-                % if zPosEndEffector <= tolerance
-                %     error('Potential collision at joint config %d for the end effector', i);
-                % end
+                % check through each environment object
+                for j = 1:length(self.EnvironmentObjects)
+                    objPos = self.EnvironmentObjects(j).Position';
+                    objRadius = self.EnvironmentObjects(j).Radius;
+                    
+                    % Calculate the distance between the link and the object
+                    distance = norm(linkPos - objPos);
+                    
+                    %check if the distance is less than the object's radius
+                    if distance < objRadius
+                        distance;
+                        collisionDetected = true;
+                        fprintf('Collision detected between Link %d and Object %d\n', i, j);
+                        
+                        % small dot where the collision occurred
+                        plot3(linkPos(1), linkPos(2), linkPos(3), 'ro', 'MarkerSize', 1, 'MarkerFaceColor', 'r');
+                        hold on; 
+                        %return;
+                    end
+                end
             end
         end
     end
