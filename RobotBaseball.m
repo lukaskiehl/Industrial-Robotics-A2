@@ -11,6 +11,8 @@ classdef RobotBaseball < handle
         
         EnvironmentObjects
 
+        EStopFlag = false
+
     end
 
     methods
@@ -62,14 +64,15 @@ classdef RobotBaseball < handle
         function BuildPeople(self)
 
             hold on;
-            person_1_Pos = [-2, 0, 0]; 
-            person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
-            verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
-            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
-            set(person_1, 'Vertices', verts(:, 1:3));
 
-            self.AddEnvironmentObject('Person', person_1_Pos, 1);
-            
+            % person_1_Pos = [-2, 0, 0]; 
+            % person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
+            % verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
+            % verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
+            % set(person_1, 'Vertices', verts(:, 1:3));
+            % 
+            % self.AddEnvironmentObject('Person', person_1_Pos, 1);
+            % 
             person_2_Pos = [0, 0, 0];
             person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
             verts = [get(person_2, 'Vertices'), ones(size(get(person_2, 'Vertices'), 1), 1)];
@@ -103,84 +106,120 @@ classdef RobotBaseball < handle
             end
         end
 
-        %%
-       function PitchBall(self)
-            
-        balls = RobotBalls;
-        steps = 30;
-       
-        pause(5);
+        %% 
         %1.0 Pick up ball
-        qpasser1 = [ 0    2.5598    0.4145         0         0         0];
-        q1 = zeros(1,6);
-        q2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
-        s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-        qMatrix = nan(steps,6);
-             for i = 1:steps
-                qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-             end
-        
-       
-        
-        for i = 1:steps
-                self.KR.model.animate(qMatrix(i,:));
-                self.CheckCollision(self.KR);
-                %pause(0.2);
+        function PitchBall(self)
+
+
+            ballTransl = transl(-0.2,0,-0);
+            ballHit = transl(0.2,-0.1,0.15);
+            hit1Flag = 0;
+            steps = 30;
+            balls = RobotBalls;
+
+            qpasser1 = [ 0    2.5598    0.4145         0         0         0];
+            krq1 = zeros(1,6);
+            krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+                 for i = 1:steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
+            for i = 1:steps
+                    self.KR.model.animate(qMatrix(i,:));
+                    CheckCollision(self, self.KR);
+                    drawnow();
+            end
+            % 1.1 Prepare to throw the ball
+            krq1 = krq2;
+            krq2 = [pi    0.0818   -2.0944    0.0000   -0.0122    0.0000];
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+                 for i = 1:steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
+            for i = 1:steps
+                    self.KR.model.animate(qMatrix(i,:));
+                    CheckCollision(self, self.KR);
+                    balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+            end
+            % 1.2 Action to throw the ball
+            krq1 = krq2;
+            krq2 = [ pi    2.8162   -0.7898         0   -0.0122   -1.5272];
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+                 for i = 1:steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
+
+            for i = 1:steps
+                    self.KR.model.animate(qMatrix(i,:));
+                    CheckCollision(self, self.KR);
+            
+                    if steps/1.36 >= i
+                      balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                      balls.ballModel{1}.animate(0);
+                      drawnow();
+                      if i == steps/1.36
+                          ballStart = self.KR.model.fkine(qMatrix(i,:))
+                      end
+                    end
+                    if i > steps/1.36
+                       % for j = 0:0.01:0.1
+                              % reset orientation of ball so we can control it. Can do
+                              % in a function later
+                              ballPos = balls.ballModel{1}.base.T;
+                              newBallPos = eye(4);
+                              newBallPos(1:3,4) = ballPos(1:3,4);
+                              balls.ballModel{1}.base = newBallPos;
+            
+                              % Animate it
+                              balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                              balls.ballModel{1}.animate(0);
+                              drawnow();
+                       % end
+                    end
+            
+                    drawnow();
+            
+            end
+            
+            urq1 = self.UR.model.getpos();
+            urq2 = self.UR.model.ikcon(transl(-5,0,0.7466)*trotx(pi/2)*trotz(pi/2));
+            
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+            for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+            end
+
+
+
+            for i = 1:steps
+                ballXYZ = balls.ballModel{1}.base.T;
+                self.UR.model.animate(qMatrix(i,:));
+                CheckCollision(self, self.UR);
                 drawnow();
-        end
-        
-
-        % 1.1 Prepare to throw the ball
-        q1 = q2;
-        q2 = [1.2363    0.0818   -2.0944    0.0000   -0.0122    0.0000];
-        s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-        qMatrix = nan(steps,6);
-             for i = 1:steps
-                qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-             end
-       
-        for i = 1:steps
-                self.KR.model.animate(qMatrix(i,:));
-                
-                balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                balls.ballModel{1}.animate(0);
-                %pause(0.2);
-                drawnow();
-        end
-
-
-        % 1.2 Action to throw the ball
-        q1 = q2;
-        q2 = [ 1.2363    2.8162   -0.7898         0   -0.0122   -1.5272];
-        s = lspb(0,1,steps/2); % use trapezoidal velocity method from Lab 4.1
-        qMatrix = nan(steps/2,6);
-             for i = 1:steps/2
-                qMatrix(i,:) = (1-s(i))*q1 + s(i)*q2;
-             end
-        
-        for i = 1:steps/2
-                self.KR.model.animate(qMatrix(i,:));
-                %pause(0.2); 
-        
-                if steps/4 >= i
-                  balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                  balls.ballModel{1}.animate(0);
-                  drawnow();
-                  % if i == steps/4
-                  %     ballStart = self.KR.model.fkine(qMatrix(i,:))
-                  % end
+                if ballXYZ(1,4) >= -5 && hit1Flag == 0
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                else
+                    hit1Flag = 1;
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
                 end
-                if i > steps/4
-                   % for j = 0:0.01:0.2
-                          balls.ballModel{1}.base = balls.ballModel{1}.base.T*transl(.05,0.1,0);
-                          balls.ballModel{1}.animate(0);
-                          drawnow();
-                   % end
-                end
-        
-                drawnow();
+            end
         end
-       end
+
+        %% animate the robot
+        function animate(self, robot, steps, qMatrix)
+
+
+        end
 
    %% GetLinkPoses
         function [ transforms ] = GetLinkPoses(self, robot)
@@ -230,12 +269,23 @@ classdef RobotBaseball < handle
                         fprintf('Collision detected between Link %d and Object %d\n', i, j);
                         
                         % small dot where the collision occurred
-                        plot3(linkPos(1), linkPos(2), linkPos(3), 'ro', 'MarkerSize', 1, 'MarkerFaceColor', 'r');
+                        plot3(linkPos(1), linkPos(2), linkPos(3), 'ro', 'MarkerSize', 5, 'MarkerFaceColor', 'r');
                         hold on; 
+
+                        EmergencyStop(self, true);
                         %return;
                     end
                 end
             end
         end
+    %% emergency stop if collission or e-stop button is pressed
+        function EmergencyStop(self, flag)
+                % Check if the emergency stop flag is set
+                self.EStopFlag = flag;
+                if self.EStopFlag
+                    input('Emergency stop triggered. Press any key to undo (we should reset here....or do something dynamic in future') % wait until user is happy to continue
+                    self.EStopFlag = false;
+                end
+            end
     end
 end
