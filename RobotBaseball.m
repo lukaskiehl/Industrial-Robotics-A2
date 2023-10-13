@@ -73,14 +73,14 @@ classdef RobotBaseball < handle
             % 
             % self.AddEnvironmentObject('Person', person_1_Pos, 1);
             % 
-            person_2_Pos = [0, 0, 0];
-            person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
-            verts = [get(person_2, 'Vertices'), ones(size(get(person_2, 'Vertices'), 1), 1)];
-            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
-            set(person_2, 'Vertices', verts(:, 1:3));
-        
-            self.AddEnvironmentObject('Person', person_2_Pos, 1);
-           
+            % person_2_Pos = [0, 0, 0];
+            % person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
+            % verts = [get(person_2, 'Vertices'), ones(size(get(person_2, 'Vertices'), 1), 1)];
+            % verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
+            % set(person_2, 'Vertices', verts(:, 1:3));
+            % 
+            % self.AddEnvironmentObject('Person', person_2_Pos, 1);
+            % 
         end
 
         %%
@@ -106,18 +106,57 @@ classdef RobotBaseball < handle
             end
         end
 
+
+        %%
+        % Batter in position
+        function RMRC(~, robot, goal, jointGuess, steps)      
+            q = robot.model.getpos;
+            T1 = robot.model.fkine(q).T;       % First pose
+
+            M = [1 1 1 zeros(1,3)];                         % Masking Matrix
+            
+            x1 = [robot.model.fkine(q).t(1);robot.model.fkine(q).t(2);robot.model.fkine(q).t(3)];
+            x2 = goal;
+            deltaT = 0.05;     
+            
+            x = zeros(3,steps); % zeros for columns 1 to steps. Stores x and y and z positions for each step of the trajectory
+            s = lspb(0,1,steps);                                 % Create interpolation scalar
+            for i = 1:steps
+                x(:,i) = x1*(1-s(i)) + s(i)*x2; % x position at each step                 % Create trajectory in x-y plane
+            end
+ 
+            qMatrix = nan(steps,6); % stores joint angles at each step  
+            qMatrix(1,:) = robot.model.ikine(T1, 'q0', jointGuess, 'mask', M);   % sets the inital joint angle              % Solve for joint angles
+      
+            for i = 1:steps-1
+                xdot = (x(:,i+1) - x(:,i))/deltaT;   % calculates velocity at each position by getting change between next and current position and dividing by time step                          % Calculate velocity at discrete time step
+                xdot = [xdot' 0 0 0];
+                J = robot.model.jacob0(qMatrix(i,:));            % Get the Jacobian at the current state
+                J = J(1:6,:);                           
+                qdot = inv(J)*xdot'; % change in joint angles   (velocity of joint angles)                         % Solve velocitities via RMRC
+                qMatrix(i+1,:) =  qMatrix(i,:) + deltaT*qdot';                   % Update next joint state
+            end
+            
+            for i = 1:steps
+                robot.model.animate(qMatrix(i,:)); % Animating the robot to move to the set joint configuratio
+                drawnow()
+                pause(0.05);
+            end
+        end   
+
+
+
         %% 
         %1.0 Pick up ball
         function PitchBall(self)
-
-
+            qpasser1 = [ 0    2.5598    0.4145         0         0         0];
+            goal = [10; 0; 0.5];
+            self.RMRC(self.UR, goal, qpasser1, 50);
             ballTransl = transl(-0.2,0,-0);
             ballHit = transl(0.2,-0.1,0.15);
             hit1Flag = 0;
             steps = 30;
             balls = RobotBalls;
-
-            qpasser1 = [ 0    2.5598    0.4145         0         0         0];
             krq1 = zeros(1,6);
             krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
             s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
