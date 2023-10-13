@@ -125,12 +125,8 @@ classdef RobotBaseball < handle
                  for i = 1:steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
-            for i = 1:steps
-                    self.KR.model.animate(qMatrix(i,:));
-                    CheckCollision(self, self.KR);
-                    drawnow();
-            end
-            % 1.1 Prepare to throw the ball
+            MoveRobot(self, self.KR, steps, qMatrix);
+               % 1.1 Prepare to throw the ball
             krq1 = krq2;
             krq2 = [pi    0.0818   -2.0944    0.0000   -0.0122    0.0000];
             s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
@@ -138,6 +134,7 @@ classdef RobotBaseball < handle
                  for i = 1:steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
+
             for i = 1:steps
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
@@ -153,7 +150,7 @@ classdef RobotBaseball < handle
                  for i = 1:steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
-
+    
             for i = 1:steps
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
@@ -195,8 +192,6 @@ classdef RobotBaseball < handle
                 qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
-
-
             for i = 1:steps
                 ballXYZ = balls.ballModel{1}.base.T;
                 self.UR.model.animate(qMatrix(i,:));
@@ -216,9 +211,12 @@ classdef RobotBaseball < handle
         end
 
         %% animate the robot
-        function animate(self, robot, steps, qMatrix)
-
-
+        function MoveRobot(self, robot, steps, qMatrix)
+           for i = 1:steps
+                    CheckCollision(self, robot);
+                    robot.model.animate(qMatrix(i,:));
+                    drawnow();
+            end 
         end
 
    %% GetLinkPoses
