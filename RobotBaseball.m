@@ -151,8 +151,10 @@ classdef RobotBaseball < handle
             goal = [11; 0.5; 0.75];
             self.RMRC(self.UR, goal, qpasser1);
             self.MoveRobot(self.UR, self.RmrcTraj);
-            ballTransl = transl(-0.2,0,-0);
-            ballHit = transl(0.2,-0.1,0.15);
+            UR3Base = self.UR.model.base.T
+            UR3reaction = 2;
+            ballTransl = transl(0.2,0,-0);
+            ballHit = transl(-0.2,0.1,0.15);
             hit1Flag = 0;
             balls = RobotBalls;
             krq1 = zeros(1,6);
@@ -165,7 +167,7 @@ classdef RobotBaseball < handle
             self.MoveRobot(self.KR, qMatrix);
                % 1.1 Prepare to throw the ball
             krq1 = krq2;
-            krq2 = [pi    0.0818   -2.0944    0.0000   -0.0122    0.0000];
+            krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000];
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
                  for i = 1:self.steps
@@ -186,7 +188,7 @@ classdef RobotBaseball < handle
             end
             % 1.2 Action to throw the ball
             krq1 = krq2;
-            krq2 = [ pi    2.8162   -0.7898         0   -0.0122   -1.5272];
+            krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272];
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
                  for i = 1:self.steps
@@ -208,7 +210,6 @@ classdef RobotBaseball < handle
                       end
                     end
                     if i > self.steps/1.36
-                       % for j = 0:0.01:0.1
                               % reset orientation of ball so we can control it. Can do
                               % in a function later
                               ballPos = balls.ballModel{1}.base.T;
@@ -220,15 +221,14 @@ classdef RobotBaseball < handle
                               balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                               balls.ballModel{1}.animate(0);
                               drawnow();
-                       % end
                     end
             
                     drawnow();
             
             end
-            
+
             urq1 = self.UR.model.getpos();
-            urq2 = self.UR.model.ikcon(transl(-5,0,0.7466)*trotx(pi/2)*trotz(pi/2));
+            urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
             
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
@@ -236,12 +236,19 @@ classdef RobotBaseball < handle
                 qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
-            for i = 1:self.steps
+            for i = 1:self.steps % 1st part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                self.UR.model.animate(qMatrix(i,:));
-                CheckCollision(self, self.UR);
-                drawnow();
-                if ballXYZ(1,4) >= -5 && hit1Flag == 0
+                if strcmp(self.eStopApp.systemState, 'running')
+                    if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                        self.UR.model.animate(qMatrix(i,:));
+                        CheckCollision(self, self.UR);
+                        drawnow();
+                    end
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                    
+                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
                     balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                     balls.ballModel{1}.animate(0);
                     drawnow();
@@ -252,6 +259,47 @@ classdef RobotBaseball < handle
                     drawnow();
                 end
             end
+            
+            urq1 = self.UR.model.getpos();
+            urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
+            
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+            for i = 1:self.steps
+                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+            end
+
+            for i = 1:self.steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
+                ballXYZ = balls.ballModel{1}.base.T;
+                if strcmp(self.eStopApp.systemState, 'running')
+                    if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                        self.UR.model.animate(qMatrix(i,:));
+                        CheckCollision(self, self.UR);
+                        drawnow();
+                    end
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                if ballXYZ(1,4) <= 10.5 && hit1Flag == 0
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                else
+                    hit1Flag = 1;
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                end
+            end
+            for i = 1:self.steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
+                balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                balls.ballModel{1}.animate(0);
+                drawnow();
+            end
+        
+
+
+
         end
 
         %% animate the robot
