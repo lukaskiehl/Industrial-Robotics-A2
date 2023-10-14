@@ -49,8 +49,8 @@ classdef RobotBaseball < handle
             self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
             self.KR.model.animate(self.KRJointAngles); %Draw the robot
             
-            baseTransformUR3 = transl(10.5,0,0);
-            self.UR = UR3(baseTransformUR3); %store UR3 robot in the UR3 
+            baseTransformUR3 = transl(10.5,0.5,0.1)*trotz(pi/2);
+            self.UR = UR3Batter(baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
 
@@ -149,32 +149,33 @@ classdef RobotBaseball < handle
         %% 
         %1.0 Pick up ball
         function PitchBall(self)
-            qpasser1 = [ 0    2.5598    0.4145         0         0         0];
-            goal = [10; 0; 0.5];
-            self.RMRC(self.UR, goal, qpasser1, 50);
-            ballTransl = transl(-0.2,0,-0);
-            ballHit = transl(0.2,-0.1,0.15);
-            hit1Flag = 0;
-            steps = 30;
-            balls = RobotBalls;
-            krq1 = zeros(1,6);
-            krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
+            qpasser1 = [0    2.4744    0.6152         0         0         0]; % to estimate joint angles for ball position
+            % goal = [10; 0; 0.5];
+            % self.RMRC(self.UR, goal, qpasser1, 50);
+            ballTransl = transl(0.2,0,-0); % transf describing how the ball is translated when thrown
+            ballHit = transl(-0.2,0.1 ,0.15); % transf describing how the ball is translated when hit
+            hit1Flag = 0; % to determine when to switch from throwing to hitting translation
+            steps = 30; % keep this at 50
+            balls = RobotBalls(1); % loading in 1 ball at the moment
+            UR3reaction = 2; % for determining when UR3 starts moving after ball is thrown (distance from ball to UR3)
+            krq1 = zeros(1,6); 
+            krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1); % joint angles to pick up the ball
             s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(steps,6);
-                 for i = 1:steps
-                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
-                 end
-            MoveRobot(self, self.KR, steps, qMatrix);
-               % 1.1 Prepare to throw the ball
-            krq1 = krq2;
-            krq2 = [pi    0.0818   -2.0944    0.0000   -0.0122    0.0000];
-            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(steps,6);
-                 for i = 1:steps
-                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
-                 end
-
             for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+            end
+            MoveRobot(self, self.KR, steps, qMatrix); % MoveRobot function to animate and check collisions
+            % 1.1 Prepare to throw the ball
+            krq1 = krq2;
+            krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000]; % joint state for preparation to throw ball
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+            for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+            end
+
+            for i = 1:steps % do a new function here - MoveRobotAndBall
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
                     balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
@@ -183,18 +184,18 @@ classdef RobotBaseball < handle
             end
             % 1.2 Action to throw the ball
             krq1 = krq2;
-            krq2 = [ pi    2.8162   -0.7898         0   -0.0122   -1.5272];
+            krq2 = [0    2.8162   -0.7898         0   -0.0122   -1.5272]; % final joint position for ball thrown
             s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(steps,6);
                  for i = 1:steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
     
-            for i = 1:steps
+            for i = 1:steps % throw the ball
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
             
-                    if steps/1.36 >= i
+                    if steps/1.36 >= i % 1.36 chosen so ball height at release is 0.7466m
                       balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
                       balls.ballModel{1}.animate(0);
                       drawnow();
@@ -221,9 +222,9 @@ classdef RobotBaseball < handle
                     drawnow();
             
             end
-            
+            UR3Base = self.UR.model.base.T;
             urq1 = self.UR.model.getpos();
-            urq2 = self.UR.model.ikcon(transl(-5,0,0.7466)*trotx(pi/2)*trotz(pi/2));
+            urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
             
             s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(steps,6);
@@ -231,12 +232,14 @@ classdef RobotBaseball < handle
                 qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
-            for i = 1:steps
+            for i = 1:steps % 1st part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                self.UR.model.animate(qMatrix(i,:));
-                CheckCollision(self, self.UR);
-                drawnow();
-                if ballXYZ(1,4) >= -5 && hit1Flag == 0
+                if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                    self.UR.model.animate(qMatrix(i,:));
+                    CheckCollision(self, self.UR);
+                    drawnow();
+                end
+                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
                     balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                     balls.ballModel{1}.animate(0);
                     drawnow();
@@ -247,6 +250,44 @@ classdef RobotBaseball < handle
                     drawnow();
                 end
             end
+            
+            urq1 = self.UR.model.getpos();
+            urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
+            
+            s = lspb(0,1,steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(steps,6);
+            for i = 1:steps
+                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+            end
+
+            for i = 1:steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
+                ballXYZ = balls.ballModel{1}.base.T;
+                if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                    self.UR.model.animate(qMatrix(i,:));
+                    CheckCollision(self, self.UR);
+                    drawnow();
+                end
+                if ballXYZ(1,4) <= 10.5 && hit1Flag == 0
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                else
+                    hit1Flag = 1;
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                end
+            end
+            for i = 1:steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
+                balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                balls.ballModel{1}.animate(0);
+                drawnow();
+            end
+        
+
+
+
+
         end
 
         %% animate the robot

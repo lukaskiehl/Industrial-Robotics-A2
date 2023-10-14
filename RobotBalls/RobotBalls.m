@@ -62,7 +62,7 @@ classdef RobotBalls < handle
                         self.ballModel{i} = self.GetBallModel(['ball',num2str(i)]);
                         % Choose base tr
                         if i== 1
-                            basePose = transl(0.4,0,0.1)*trotx(pi); 
+                            basePose = transl(-0.6,0,0.1)*trotx(pi); 
                             % rotate each about x to have right axis. 
                         end
                         if i == 2
