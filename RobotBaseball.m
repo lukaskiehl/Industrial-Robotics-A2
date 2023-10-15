@@ -1,9 +1,8 @@
 classdef RobotBaseball < handle
-    %UNTITLED2 Summary of this class goes here
-    %   Detailed explanation goes here
+    %Summary of this class goes here
+    %Detailed explanation goes here
 
-    properties
-       
+    properties       
         KR;
         KRJointAngles;
         UR;
@@ -11,31 +10,32 @@ classdef RobotBaseball < handle
         EnvironmentObjects;
         EStopFlag = false;
         eStopApp;
-        steps = 30;
+        Steps = 30;
         RmrcTraj;
+        HardStop;
+        buttonPin = 'D2';
 
     end
 
     methods
         %% cthrow the ball
         function self = RobotBaseball()
-            close all force;
-
+            close all force; %force required for GUI      
             clc;
-            clf;
-            
+            clf;          
             hold on;
+            self.clearArduino();
+            self.HardStop = arduino('COM5', 'Uno');
+            configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
-            self.RmrcTraj = nan(self.steps,6); 
+            self.RmrcTraj = nan(self.Steps,6); 
             self.BuildField();
             self.BuildRobots();
             self.BuildPeople();
             input('press enter to play baseball');
             
             self.PitchBall();
-         
-
-        end
+         end
 
         %%
         function BuildField(self)
@@ -123,15 +123,15 @@ classdef RobotBaseball < handle
             x2 = goal;
             deltaT = 0.05;     
             
-            x = zeros(3,self.steps); % zeros for columns 1 to steps. Stores x and y and z positions for each step of the trajectory
-            s = lspb(0,1,self.steps);                                 % Create interpolation scalar
-            for i = 1:self.steps
+            x = zeros(3,self.Steps); % zeros for columns 1 to steps. Stores x and y and z positions for each step of the trajectory
+            s = lspb(0,1,self.Steps);                                 % Create interpolation scalar
+            for i = 1:self.Steps
                 x(:,i) = x1*(1-s(i)) + s(i)*x2; % x position at each step                 % Create trajectory in x-y plane
             end
  
             self.RmrcTraj(1,:) = robot.model.ikine(T1, 'q0', jointGuess, 'mask', M);   % sets the inital joint angle              % Solve for joint angles
       
-            for i = 1:self.steps-1
+            for i = 1:self.Steps-1
                 xdot = (x(:,i+1) - x(:,i))/deltaT;   % calculates velocity at each position by getting change between next and current position and dividing by time step                          % Calculate velocity at discrete time step
                 xdot = [xdot' 0 0 0];
                 J = robot.model.jacob0(self.RmrcTraj(i,:));            % Get the Jacobian at the current state
@@ -151,7 +151,7 @@ classdef RobotBaseball < handle
             goal = [11; 0.5; 0.75];
             self.RMRC(self.UR, goal, qpasser1);
             self.MoveRobot(self.UR, self.RmrcTraj);
-            UR3Base = self.UR.model.base.T
+            UR3Base = self.UR.model.base.T;
             UR3reaction = 2;
             ballTransl = transl(0.2,0,-0);
             ballHit = transl(-0.2,0.1,0.15);
@@ -159,22 +159,23 @@ classdef RobotBaseball < handle
             balls = RobotBalls;
             krq1 = zeros(1,6);
             krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
-            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
+            s = lspb(0,1,self.Steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.Steps,6);
+                 for i = 1:self.Steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
             self.MoveRobot(self.KR, qMatrix);
                % 1.1 Prepare to throw the ball
             krq1 = krq2;
             krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000];
-            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
+            s = lspb(0,1,self.Steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.Steps,6);
+                 for i = 1:self.Steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
 
-            for i = 1:self.steps
+            for i = 1:self.Steps
+                self.checkButtonState();
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
@@ -189,27 +190,27 @@ classdef RobotBaseball < handle
             % 1.2 Action to throw the ball
             krq1 = krq2;
             krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272];
-            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
+            s = lspb(0,1,self.Steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.Steps,6);
+                 for i = 1:self.Steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
     
-            for i = 1:self.steps
+            for i = 1:self.Steps
                     self.KR.model.animate(qMatrix(i,:));
                     CheckCollision(self, self.KR);
             
-                    if self.steps/1.36 >= i
+                    if self.Steps/1.36 >= i
                       balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
                       balls.ballModel{1}.animate(0);
                       drawnow();
                       
                       %currently unused??
-                      if i == self.steps/1.36
+                      if i == self.Steps/1.36
                           ballStart = self.KR.model.fkine(qMatrix(i,:));
                       end
                     end
-                    if i > self.steps/1.36
+                    if i > self.Steps/1.36
                               % reset orientation of ball so we can control it. Can do
                               % in a function later
                               ballPos = balls.ballModel{1}.base.T;
@@ -230,14 +231,15 @@ classdef RobotBaseball < handle
             urq1 = self.UR.model.getpos();
             urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
             
-            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(self.steps,6);
-            for i = 1:self.steps
+            s = lspb(0,1,self.Steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.Steps,6);
+            for i = 1:self.Steps
                 qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
-            for i = 1:self.steps % 1st part of throw (as 30 steps doesnt get ball to the end)
+            for i = 1:self.Steps % 1st part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
+                self.checkButtonState();
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
@@ -263,14 +265,15 @@ classdef RobotBaseball < handle
             urq1 = self.UR.model.getpos();
             urq2 = self.UR.model.ikcon(transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(pi/2));
             
-            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
-            qMatrix = nan(self.steps,6);
-            for i = 1:self.steps
+            s = lspb(0,1,self.Steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.Steps,6);
+            for i = 1:self.Steps
                 qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
-            for i = 1:self.steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
+            for i = 1:self.Steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
+                self.checkButtonState();
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
@@ -291,7 +294,7 @@ classdef RobotBaseball < handle
                     drawnow();
                 end
             end
-            for i = 1:self.steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
+            for i = 1:self.Steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
                 balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
                 balls.ballModel{1}.animate(0);
                 drawnow();
@@ -304,7 +307,8 @@ classdef RobotBaseball < handle
 
         %% animate the robot
         function MoveRobot(self, robot, qMatrix)
-            for i = 1:self.steps
+            for i = 1:self.Steps
+                self.checkButtonState();
                 if strcmp(self.eStopApp.systemState, 'running')
                         CheckCollision(self, robot);
                         robot.model.animate(qMatrix(i,:));
@@ -371,14 +375,22 @@ classdef RobotBaseball < handle
                 end
             end
         end
-    %% emergency stop if collission or e-stop button is pressed
-        % function EmergencyStop(self, flag)
-        %         % Check if the emergency stop flag is set
-        %         self.EStopFlag = flag;
-        %         if self.EStopFlag
-        %             input('Emergency stop triggered. Press any key to undo (we should reset here....or do something dynamic in future') % wait until user is happy to continue
-        %             self.EStopFlag = false;
-        %         end
-        %     end
+
+        function checkButtonState(self)
+            % Check for button press from Arduino
+            buttonState = readDigitalPin(self.HardStop, self.buttonPin);
+            
+            % If button is pressed, change systemState to 'eStopped'
+            if buttonState == 0
+                self.eStopApp.systemState = 'eStopped';
+            end
+        end
+
+        function clearArduino(self)
+            if ~isempty(self.HardStop)
+                clear self.HardStop;
+                self.HardStop = [];
+            end
+    end
     end
 end
