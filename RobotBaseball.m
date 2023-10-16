@@ -14,8 +14,8 @@ classdef RobotBaseball < handle
         steps = 30;
         RmrcTraj;
         baseTransformUR3;
-        % HardStop;
-        % buttonPin = 'D2';
+        HardStop;
+        buttonPin = 'D2';
 
 
     end
@@ -29,9 +29,9 @@ classdef RobotBaseball < handle
             clf;
             
             hold on;
-            % self.clearArduino();
-            % self.HardStop = arduino('COM5', 'Uno');
-            % configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
+            self.clearArduino();
+            self.HardStop = arduino('COM5', 'Uno');
+            configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
             self.RmrcTraj = nan(self.steps,6); 
             self.BuildField();
@@ -60,9 +60,8 @@ classdef RobotBaseball < handle
             self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
             self.KR.model.animate(self.KRJointAngles); %Draw the robot
             
-            baseTransformUR3 = transl(10.5,0,0.1) *trotz(pi/2); % Rotates UR3 by pi/2 back
-            self.UR = UR3Batter(baseTransformUR3); %store UR3 robot in the UR3 
-            self.baseTransformUR3 = baseTransformUR3;
+            self.baseTransformUR3 = transl(10.5,0,0.1) *trotz(pi/2); % Rotates UR3 by pi/2 back
+            self.UR = UR3Batter(self.baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
 
@@ -225,10 +224,7 @@ classdef RobotBaseball < handle
             plotRMRC = plot3(x(1,:),x(2,:),x(3,:),'k.','LineWidth',0.2); % Track the line of the RMRC movement
 
             % UR = UR3Batter(baseTransformUR3);
-            for i = 1:steps1
-                robot.model.animate(qMatrix(i,:))
-                drawnow()
-            end
+            MoveRobot(self,robot,qMatrix);
             delete(plotRMRC)
 
         end  
@@ -242,17 +238,7 @@ classdef RobotBaseball < handle
             for i = 1:self.steps
                     qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
-            for i = 1:self.steps
-                if strcmp(self.eStopApp.systemState, 'running')
-                    robot.model.animate(qMatrix(i,:));
-                    CheckCollision(self, self.KR);
-                    drawnow();
-                else
-                    input("please disengage emergency stop before continuing")
-                end
-
-            end
-
+            MoveRobot(self,robot,qMatrix);      
         end
 
 
@@ -296,17 +282,18 @@ classdef RobotBaseball < handle
                  end
 
             for i = 1:self.steps
+                self.checkButtonState();
+                CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
-                    CheckCollision(self, self.KR);
-                    balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
                 else
                     input("please disengage emergency stop before continuing")
                 end
-
+                balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                balls.ballModel{1}.animate(0);
+                drawnow();
             end
+            
             % 1.2 Action to throw the ball
             krq1 = krq2;
             krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272];
@@ -317,18 +304,22 @@ classdef RobotBaseball < handle
                  end
     
             for i = 1:self.steps
-                    self.KR.model.animate(qMatrix(i,:));
+                    self.checkButtonState();
                     CheckCollision(self, self.KR);
-            
+                    if strcmp(self.eStopApp.systemState, 'running')
+                        self.KR.model.animate(qMatrix(i,:));
+                    else
+                        input("please disengage emergency stop before continuing")
+                    end
                     if self.steps/1.36 >= i
                       balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
                       balls.ballModel{1}.animate(0);
                       drawnow();
                       
-                      %currently unused??
-                      if i == self.steps/1.36
-                          ballStart = self.KR.model.fkine(qMatrix(i,:));
-                      end
+                      %currently unused
+                      % if i == self.steps/1.36
+                      %     ballStart = self.KR.model.fkine(qMatrix(i,:));
+                      % end
                     end
                     if i > self.steps/1.36
                               % reset orientation of ball so we can control it. Can do
@@ -360,10 +351,11 @@ classdef RobotBaseball < handle
 
             for i = 1:self.steps % 1st part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
+                self.checkButtonState();
+                CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
-                        CheckCollision(self, self.UR);
                         drawnow();
                     end
                 else
@@ -393,10 +385,11 @@ classdef RobotBaseball < handle
 
             for i = 1:self.steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
+                self.checkButtonState();
+                CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
-                        CheckCollision(self, self.UR);
                         drawnow();
                     end
                 else
@@ -427,8 +420,9 @@ classdef RobotBaseball < handle
         %% animate the robot
         function MoveRobot(self, robot, qMatrix)
             for i = 1:self.steps
+                self.checkButtonState();
+                CheckCollision(self, robot);
                 if strcmp(self.eStopApp.systemState, 'running')
-                        CheckCollision(self, robot);
                         robot.model.animate(qMatrix(i,:));
                         drawnow();
                         pause(0.05); 
@@ -495,22 +489,22 @@ classdef RobotBaseball < handle
         end
 
         % %%
-        % function checkButtonState(self)
-        %     % Check for button press from Arduino
-        %     buttonState = readDigitalPin(self.HardStop, self.buttonPin);
-        % 
-        %     % If button is pressed, change systemState to 'eStopped'
-        %     if buttonState == 0
-        %         self.eStopApp.systemState = 'eStopped';
-        %     end
-        % end
-        % %%
-        % function clearArduino(self)
-        %     if ~isempty(self.HardStop)
-        %         clear self.HardStop;
-        %         self.HardStop = [];
-        %     end
-        % end
+        function checkButtonState(self)
+            % Check for button press from Arduino
+            buttonState = readDigitalPin(self.HardStop, self.buttonPin);
+            % If button is pressed, change systemState to 'eStopped'
+            if buttonState == 0
+                self.eStopApp.systemState = 'eStopped';
+            end
+        end
+        %%
+        function clearArduino(self)
+            if ~isempty(self.HardStop)
+                clear self.HardStop;
+                self.HardStop = [];
+            end
+        end
+
     %% emergency stop if collission or e-stop button is pressed
         % function EmergencyStop(self, flag)
         %         % Check if the emergency stop flag is set
