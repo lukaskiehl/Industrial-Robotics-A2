@@ -155,7 +155,7 @@ classdef RobotBaseball < handle
             t = 10;             % Total time (s)
             deltaT = 0.02*5;      % Control frequency
             steps1 = t/deltaT;   % No. of steps for simulation
-            delta = 2*pi/steps1; % Small angle change
+            % delta = 2*pi/steps1; % Small angle change
             epsilon = 0.1;      % Threshold value for manipulability/Damped Least Squares
             W = diag([1 1 1 0.1 0.1 0.1]);    % Weighting matrix for the velocity vector
             
@@ -170,7 +170,7 @@ classdef RobotBaseball < handle
             radius = 0.5;
             
             % 1.3) Set up trajectory, initial pose
-            s = lspb(0,1,steps1);                % Trapezoidal trajectory scalar
+            % s = lspb(0,1,steps1);                % Trapezoidal trajectory scalar
             thetaSemiCircle = linspace(0, pi, steps1); % Model a semi circle for the UR3 to wave its bat
             for i = 1:steps1
                 x(1, i) = cos(thetaSemiCircle(i)) * radius + self.baseTransformUR3(1,4); % x-coordinate
