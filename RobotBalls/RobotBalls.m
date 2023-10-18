@@ -37,70 +37,44 @@ classdef RobotBalls < handle
                                        ,-self.siteSize(2)/2, self.siteSize(2)/2 ...
                                        ,0,self.maxHeight];
           
-            switch spawnChoice % Decide how to spawn balls
+            positions = [
+                -0.6, 0, 0.1;
+                -0.2, -0.42, 0.05;
+                -0.3, -0.4, 0.05;
+                -0.4, -0.4, 0.05;
+                -0.5, -0.4, 0.05;
+                -0.6, -0.4, 0.05;
+                -0.7, -0.4, 0.05;
+                -0.8, -0.4, 0.05;
+                -0.9, -0.4, 0.05;
+            ];         
+            % Ball creation and positioning
+            for i = 1:self.ballCount
+                self.ballModel{i} = self.GetBallModel(['ball', num2str(i)]);
                 
-                case 1
-                % Case 1. spawn balls using the i value as a multiplier for x
-                % location. Useful for over 9 balls. 
-                    for i = 1:self.ballCount
-                        self.ballModel{i} = self.GetBallModel(['ball',num2str(i)]);
-                        % base tr
-                        basePose = transl(-0.1*i,-0.4,0.05)*trotx(pi);
-                        self.ballModel{i}.base = basePose;
-
-                        plot3d(self.ballModel{i},0,'workspace',self.workspaceDimensions,'view',[-30,30],'delay',0,'noarrow','nowrist');
-                        % Hold on after the first plot (if already on there's no difference)
-                        if i == 1 
-                            hold on;
+                switch spawnChoice
+                    case 1
+                        basePose = transl(-0.1 * i, -0.4, 0.05) * trotx(pi);
+                        
+                    case 2
+                        if i <= size(positions, 1)
+                            basePose = transl(positions(i, :)) * trotx(pi);
+                        else
+                            basePose = transl(0.5 * i, -0.3, 0.05) * trotx(pi);
                         end
-                    end
-
-                case 2
-                % Case 2. spawn balls using specific values in nested if
-                % statements. Useful for 9 balls. 
-                    for i = 1:self.ballCount
-                        self.ballModel{i} = self.GetBallModel(['ball',num2str(i)]);
-                        % Choose base tr
-                        if i== 1
-                            basePose = transl(-0.6,0,0.1)*trotx(pi); 
-                            % rotate each about x to have right axis. 
-                        end
-                        if i == 2
-                            basePose = transl(-0.2,-0.42,0.05)*trotx(pi);
-                        end
-                        if i == 3
-                            basePose = transl(-0.3,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 4
-                            basePose = transl(-0.4,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 5
-                            basePose = transl(-0.5,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 6
-                            basePose = transl(-0.6,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 7
-                            basePose = transl(-0.7,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 8
-                            basePose = transl(-0.8,-0.4,0.05)*trotx(pi);
-                        end
-                        if i == 9
-                            basePose = transl(-0.9,-0.4,0.05)*trotx(pi);
-                        end
-                        if i > 9
-                            basePose = transl(0.5*i,-0.3,0.05)*trotx(pi);
-                        end
-                        self.ballModel{i}.base = basePose;
-                        plot3d(self.ballModel{i},0,'workspace',self.workspaceDimensions,'view',[-30,30],'delay',0,'noarrow','nowrist');
-                        % Hold on after the first plot (if already on there's no difference)
-                        if i == 1 
-                            hold on;
-                        end
-
-                    end
+                end
+            
+                self.ballModel{i}.base = basePose;
+            
+                % Plotting
+                plot3d(self.ballModel{i}, 0, 'workspace', self.workspaceDimensions, 'view', [-30, 30], 'delay', 0, 'noarrow', 'nowrist');
+                
+                % Hold on after the first plot (ensures subsequent plots are in the same figure)
+                if i == 1 
+                    hold on;
+                end
             end
+
 
             axis equal
             % Run below code to delete camlight in figure
