@@ -45,7 +45,7 @@ classdef RobotBaseball < handle
         end
 
         %%
-        function BuildField(self)
+        function BuildField(~)
             surf([-1,-1;1,1]*15 ...
                 ,[-1,1;-1,1]*15 ...
                 ,[0,0;0,0] ...
@@ -72,7 +72,7 @@ classdef RobotBaseball < handle
         end
 
         %%
-        function BuildPeople(self)
+        function BuildPeople(~)
 
             hold on;
 
