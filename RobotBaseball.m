@@ -29,14 +29,15 @@ classdef RobotBaseball < handle
             clf;
             
             hold on;
-            self.clearArduino();
-            self.HardStop = arduino('COM5', 'Uno');
-            configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
+            % self.clearArduino();
+            % self.HardStop = arduino('COM5', 'Uno');
+            % configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
             self.RmrcTraj = nan(self.steps,6); 
             self.BuildField();
             self.BuildRobots();
             self.BuildPeople();
+            self.TestLightCurtain();
             input('press enter to play baseball');
             
             self.PitchBall();
@@ -72,17 +73,17 @@ classdef RobotBaseball < handle
         end
 
         %%
-        function BuildPeople(~)
+        function BuildPeople(self)
 
             hold on;
 
-            % person_1_Pos = [-2, 0, 0]; 
-            % person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
-            % verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
-            % verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
-            % set(person_1, 'Vertices', verts(:, 1:3));
-            % 
-            % self.AddEnvironmentObject('Person', person_1_Pos, 1);
+            person_1_Pos = [-2, 0, 0]; 
+            person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
+            verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
+            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
+            set(person_1, 'Vertices', verts(:, 1:3));
+
+            self.AddEnvironmentObject('Person', person_1_Pos, 1);
             % 
             % person_2_Pos = [0, 0, 0];
             % person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
@@ -282,7 +283,7 @@ classdef RobotBaseball < handle
                  end
 
             for i = 1:self.steps
-                self.checkButtonState();
+                % self.checkButtonState();
                 CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
@@ -304,7 +305,7 @@ classdef RobotBaseball < handle
                  end
     
             for i = 1:self.steps
-                    self.checkButtonState();
+                    % self.checkButtonState();
                     CheckCollision(self, self.KR);
                     if strcmp(self.eStopApp.systemState, 'running')
                         self.KR.model.animate(qMatrix(i,:));
@@ -351,7 +352,7 @@ classdef RobotBaseball < handle
 
             for i = 1:self.steps % 1st part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                self.checkButtonState();
+                % self.checkButtonState();
                 CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
@@ -385,7 +386,7 @@ classdef RobotBaseball < handle
 
             for i = 1:self.steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                self.checkButtonState();
+                % self.checkButtonState();
                 CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
@@ -420,7 +421,7 @@ classdef RobotBaseball < handle
         %% animate the robot
         function MoveRobot(self, robot, qMatrix)
             for i = 1:self.steps
-                self.checkButtonState();
+                % self.checkButtonState();
                 CheckCollision(self, robot);
                 if strcmp(self.eStopApp.systemState, 'running')
                         robot.model.animate(qMatrix(i,:));
@@ -488,10 +489,10 @@ classdef RobotBaseball < handle
             end
         end
 
-        % %%
+        %%
         function checkButtonState(self)
             % Check for button press from Arduino
-            buttonState = readDigitalPin(self.HardStop, self.buttonPin);
+            % buttonState = readDigitalPin(self.HardStop, self.buttonPin);
             % If button is pressed, change systemState to 'eStopped'
             if buttonState == 0
                 self.eStopApp.systemState = 'eStopped';
@@ -514,5 +515,96 @@ classdef RobotBaseball < handle
         %             self.EStopFlag = false;
         %         end
         %     end
+
+%%
+        function TestLightCurtain(self)
+            personSteps = 200; 
+        
+            B = [5, -5, 0];
+            A = [5, -10 ,0];
+            stepSize = (B - A) / personSteps; %step length for each coordinate
+        
+            person_light_Pos = A;
+            person_light = PlaceObject('personMaleCasual.ply', person_light_Pos);
+            original_verts = [get(person_light, 'Vertices'), ones(size(get(person_light, 'Vertices'), 1), 1)]; % Store the original vertices
+            verts = original_verts;
+            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
+            set(person_light, 'Vertices', verts(:, 1:3));
+            self.AddEnvironmentObject('Person', person_light_Pos, 1);
+        
+            input('Start Light Curtain Test, press enter:')
+            for i = 1:personSteps
+                
+                self.checkLightCurtainCollision();
+
+                % Update position of the person
+                person_light_Pos = person_light_Pos + stepSize;
+            
+                % Calculate the new vertices based on the original position
+                new_verts = original_verts;
+                new_verts(:, 1:3) = new_verts(:, 1:3) + repmat((person_light_Pos - A), size(new_verts, 1), 1);
+            
+                % Update verticies of person
+                set(person_light, 'Vertices', new_verts(:, 1:3));
+            
+                % Update the position of the person in EnvironmentObjects
+                % array
+                self.EnvironmentObjects(end).Position = person_light_Pos;
+                pause(0.1);
+            end
+        end
+
+        %%
+        function checkLightCurtainCollision(self)
+            pt1 = [3, -10, 0];
+            pt2 = [7, -4, 0];
+            
+            % Ensure pt1 and pt2 are row vectors
+            if size(pt1, 1) > 1
+                pt1 = pt1';
+            end
+            if size(pt2, 1) > 1
+                pt2 = pt2';
+            end
+            
+            % Calculate the direction vector from pt1 to pt2
+            direction = pt2 - pt1;
+            
+            % calculate the normal vector to the plane
+            normal = cross(direction, [0, 0, 1]);
+            
+            for j = 1:length(self.EnvironmentObjects)
+                if strcmp(self.eStopApp.systemState, 'running')
+                        
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                objPos = self.EnvironmentObjects(j).Position';
+                objRadius = self.EnvironmentObjects(j).Radius;
+                
+                % Ensure objPos is a row vector
+                if size(objPos, 1) > 1
+                    objPos = objPos';
+                end
+        
+                % Calculate the distance from the object center to the plane
+                distanceToPlane = dot(normal, objPos - pt1) / norm(normal);
+                
+                 % Check if the object's radius intersects the plane
+                if abs(distanceToPlane) <= objRadius
+                    fprintf('Collision detected with Light Curtain for Object %d\n', j);
+                    
+                    self.eStopApp.systemState = 'eStopped';
+                    
+                    % plot collision point
+                    plot3(objPos(1), objPos(2), objPos(3), 'ro', 'MarkerSize', 5, 'MarkerFaceColor', 'r');
+                    hold on;
+                end
+            end
+        end
+
+
+
+      
     end
 end
