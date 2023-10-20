@@ -12,6 +12,7 @@ classdef RobotBaseball < handle
         EStopFlag = false;
         eStopApp;
         steps = 30;
+        steps1;
         RmrcTraj;
         baseTransformUR3;
         HardStop;
@@ -36,11 +37,12 @@ classdef RobotBaseball < handle
             self.RmrcTraj = nan(self.steps,6); 
             self.BuildField();
             self.BuildRobots();
-            self.BuildPeople();
-            self.TestLightCurtain();
+            % self.BuildPeople();
+            % self.TestLightCurtain();
             input('press enter to play baseball');
             
-            self.PitchBall();
+            % self.PitchBall();
+            self.PitchBall2();
          
 
         end
@@ -56,15 +58,17 @@ classdef RobotBaseball < handle
         %%
         function BuildRobots(self)
             hold on;
-            baseTransformKR6R700C = transl(-1,0,0.2);
-            self.KR = KR6R700CR(baseTransformKR6R700C); %store Kuka Robot in the 'KR' robot property.
-            self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
-            self.KR.model.animate(self.KRJointAngles); %Draw the robot
             
             self.baseTransformUR3 = transl(10.5,0,0.1) *trotz(pi/2); % Rotates UR3 by pi/2 back
             self.UR = UR3Batter(self.baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
+
+            baseTransformKR6R700C = transl(-1,0,0.2);
+            self.KR = KR6R700CR(baseTransformKR6R700C); %store Kuka Robot in the 'KR' robot property.
+            self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
+            self.KR.model.animate(self.KRJointAngles); %Draw the robot
+            
 
             % self.KR.model.links
            
@@ -151,29 +155,29 @@ classdef RobotBaseball < handle
         end   
 
         %% 
-        function WaveBat(self, robot)  
+         function WaveBat(self, robot)  
             
             t = 10;             % Total time (s)
             deltaT = 0.02*5;      % Control frequency
-            steps1 = t/deltaT;   % No. of steps for simulation
+            self.steps1 = t/deltaT;   % No. of steps for simulation
             % delta = 2*pi/steps1; % Small angle change
             epsilon = 0.1;      % Threshold value for manipulability/Damped Least Squares
             W = diag([1 1 1 0.1 0.1 0.1]);    % Weighting matrix for the velocity vector
             
             % 1.2) Allocate array data
-            m = zeros(steps1,1);             % Array for Measure of Manipulability
-            qMatrix = zeros(steps1,6);       % Array for joint anglesR
-            qdot = zeros(steps1,6);          % Array for joint velocities
-            theta = zeros(3,steps1);         % Array for roll-pitch-yaw angles
-            x = zeros(3,steps1);             % Array for x-y-z trajectory
-            positionError = zeros(3,steps1); % For plotting trajectory error
-            angleError = zeros(3,steps1);    % For plotting trajectory error
+            m = zeros(self.steps1,1);             % Array for Measure of Manipulability
+            qMatrix = zeros(self.steps1,6);       % Array for joint anglesR
+            qdot = zeros(self.steps1,6);          % Array for joint velocities
+            theta = zeros(3,self.steps1);         % Array for roll-pitch-yaw angles
+            x = zeros(3,self.steps1);             % Array for x-y-z trajectory
+            positionError = zeros(3,self.steps1); % For plotting trajectory error
+            angleError = zeros(3,self.steps1);    % For plotting trajectory error
             radius = 0.5;
             
             % 1.3) Set up trajectory, initial pose
             % s = lspb(0,1,steps1);                % Trapezoidal trajectory scalar
-            thetaSemiCircle = linspace(0, pi, steps1); % Model a semi circle for the UR3 to wave its bat
-            for i = 1:steps1
+            thetaSemiCircle = linspace(0, pi, self.steps1); % Model a semi circle for the UR3 to wave its bat
+            for i = 1:self.steps1
                 x(1, i) = cos(thetaSemiCircle(i)) * radius + self.baseTransformUR3(1,4); % x-coordinate
                 x(2, i) = sin(thetaSemiCircle(i)) * radius + self.baseTransformUR3(2,4); % y-coordinate
                 x(3, i) = 0.8 + self.baseTransformUR3(3,4); % Fixed z-coordinate
@@ -187,7 +191,7 @@ classdef RobotBaseball < handle
             qMatrix(1,:) = robot.model.ikcon(T,q0);                                              % Solve joint angles to achieve first waypoint
             
             % 1.4) Track the trajectory with RMRC
-            for i = 1:steps1-1
+            for i = 1:self.steps1-1
                 T = robot.model.fkine(qMatrix(i,:)).T;                                           % Get forward transformation at current joint state
                 deltaX = x(:,i+1) - T(1:3,4);                                         	% Get position error from next waypoint
                 Rd = rpy2r(theta(1,i+1),theta(2,i+1),theta(3,i+1));                     % Get next RPY angles, convert to rotation matrix
@@ -225,7 +229,7 @@ classdef RobotBaseball < handle
             plotRMRC = plot3(x(1,:),x(2,:),x(3,:),'k.','LineWidth',0.2); % Track the line of the RMRC movement
 
             % UR = UR3Batter(baseTransformUR3);
-            MoveRobot(self,robot,qMatrix);
+            MoveRobotForRMRC(self,robot,qMatrix);
             delete(plotRMRC)
 
         end  
@@ -396,7 +400,7 @@ classdef RobotBaseball < handle
                 else
                     input("please disengage emergency stop before continuing")
                 end
-                if ballXYZ(1,4) <= 10.5 && hit1Flag == 0
+                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
                     balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                     balls.ballModel{1}.animate(0);
                     drawnow();
@@ -412,10 +416,179 @@ classdef RobotBaseball < handle
                 balls.ballModel{1}.animate(0);
                 drawnow();
             end
-        
+
+        end
+        %% Pitch Ball 2
+     %1.0 Pick up ball
+        function PitchBall2(self)
+            qpasser1 = [0 2.5598 0.4145 0 0 0];
+
+            UR3Base = self.UR.model.base.T;
+            UR3Base = UR3Base*transl(-1,0,0);
+            % goal = UR3Base*trotz(pi/2);
+            % goal = goal(1:3,4)';
+            % goal = [11; 0.5; 0.75];
+            % self.RMRC(self.UR, goal, zeros(1,6));
+            % self.MoveRobot(self.UR, self.RmrcTraj);
+
+            self.WaveBat(self.UR) % UR3 waves the bat
+            self.ReturnToStart(self.UR) % UR3 returns to start
 
 
+            UR3reaction = 2;
+            ballTransl = transl(0.2,0,-0);
+            ballHit = transl(-0.2,-0.2,0.17);
+            hit1Flag = 0;
+            balls = RobotBalls;
+            krq1 = zeros(1,6);
+            krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+                 for i = 1:self.steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
+            self.MoveRobot(self.KR, qMatrix);
+               % 1.1 Prepare to throw the ball
+            krq1 = krq2;
+            krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000];
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+                 for i = 1:self.steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
 
+            for i = 1:self.steps
+                % self.checkButtonState(); 
+                CheckCollision(self, self.KR);
+                if strcmp(self.eStopApp.systemState, 'running')
+                    self.KR.model.animate(qMatrix(i,:));
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                balls.ballModel{1}.animate(0);
+                drawnow();
+            end
+            
+            % 1.2 Action to throw the ball
+            krq1 = krq2;
+            krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272];
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+                 for i = 1:self.steps
+                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+                 end
+    
+            for i = 1:self.steps
+                    % self.checkButtonState();
+                    CheckCollision(self, self.KR);
+                    if strcmp(self.eStopApp.systemState, 'running')
+                        self.KR.model.animate(qMatrix(i,:));
+                    else
+                        input("please disengage emergency stop before continuing")
+                    end
+                    if self.steps/1.36 >= i
+                      balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                      balls.ballModel{1}.animate(0);
+                      drawnow();
+                      
+                      %currently unused
+                      % if i == self.steps/1.36
+                      %     ballStart = self.KR.model.fkine(qMatrix(i,:));
+                      % end
+                    end
+                    if i > self.steps/1.36
+                              % reset orientation of ball so we can control it. Can do
+                              % in a function later
+                              ballPos = balls.ballModel{1}.base.T;
+                              newBallPos = eye(4);
+                              newBallPos(1:3,4) = ballPos(1:3,4);
+                              balls.ballModel{1}.base = newBallPos;
+            
+                              % Animate it
+                              balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                              balls.ballModel{1}.animate(0);
+                              drawnow();
+                    end
+            
+                    drawnow();
+            
+            end
+
+            urq1 = self.UR.model.getpos();
+            hitPos2 = transl(UR3Base(1,4)-2*0.50819,-0.50819,0.7466)*troty(pi);%*trotx(-pi/2);
+            % urq2 = self.UR.model.ikcon(hitPos2);
+             urq2 = deg2rad([-180 0 0 0 0 0]);
+            
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+            for i = 1:self.steps
+                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+            end
+
+            for i = 1:self.steps % 1st part of throw (as 30 steps doesnt get ball to the end)
+                ballXYZ = balls.ballModel{1}.base.T;
+                % self.checkButtonState();
+                CheckCollision(self, self.UR);
+                if strcmp(self.eStopApp.systemState, 'running')
+                    if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                        self.UR.model.animate(qMatrix(i,:));
+                        drawnow();
+                    end
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                    
+                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                else
+                    hit1Flag = 1;
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                end
+            end
+            
+            urq1 = self.UR.model.getpos();
+            % urq2 = self.UR.model.ikcon(hitPos2);
+             urq2 = deg2rad([-180 0 0 0 0 0]);
+            
+            s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
+            qMatrix = nan(self.steps,6);
+            for i = 1:self.steps
+                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+            end
+
+            for i = 1:self.steps % 2nd part of throw (as 30 steps doesnt get ball to the end)
+                ballXYZ = balls.ballModel{1}.base.T;
+                % self.checkButtonState();
+                CheckCollision(self, self.UR);
+                if strcmp(self.eStopApp.systemState, 'running')
+                    if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
+                        self.UR.model.animate(qMatrix(i,:));
+                        drawnow();
+                    end
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                else
+                    hit1Flag = 1;
+                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
+                end
+            end
+            for i = 1:self.steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
+                balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                balls.ballModel{1}.animate(0);
+                drawnow();
+            end
         end
 
         %% animate the robot
@@ -432,7 +605,20 @@ classdef RobotBaseball < handle
                 end
             end
         end
-
+        %% animate the robot for RMRC
+        function MoveRobotForRMRC(self, robot, qMatrix)
+            for i = 1:self.steps1
+                % self.checkButtonState();
+                CheckCollision(self, robot);
+                if strcmp(self.eStopApp.systemState, 'running')
+                        robot.model.animate(qMatrix(i,:));
+                        drawnow();
+                        pause(0.05); 
+                else
+                    input("please disengage emergency stop before continuing")
+                end
+            end
+        end
    %% GetLinkPoses
         function [ transforms ] = GetLinkPoses(~, robot)
             q = robot.model.getpos();
