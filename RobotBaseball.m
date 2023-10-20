@@ -37,7 +37,7 @@ classdef RobotBaseball < handle
             self.RmrcTraj = nan(self.steps,6); 
             self.BuildField();
             self.BuildRobots();
-            % self.BuildPeople();
+            self.BuildPeople();
             % self.TestLightCurtain();
             input('press enter to play baseball');
             
@@ -80,14 +80,14 @@ classdef RobotBaseball < handle
         function BuildPeople(self)
 
             hold on;
-
-            person_1_Pos = [-2, 0, 0]; 
-            person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
-            verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
-            verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
-            set(person_1, 'Vertices', verts(:, 1:3));
-
-            self.AddEnvironmentObject('Person', person_1_Pos, 1);
+            % 
+            % person_1_Pos = [-2, 0, 0]; 
+            % person_1 = PlaceObject('personMaleCasual.ply', person_1_Pos);
+            % verts = [get(person_1, 'Vertices'), ones(size(get(person_1, 'Vertices'), 1), 1)];
+            % verts(:, 1:3) = verts(:, 1:3) * 1; %scale 
+            % set(person_1, 'Vertices', verts(:, 1:3));
+            % 
+            % self.AddEnvironmentObject('Person', person_1_Pos, 1);
             % 
             % person_2_Pos = [0, 0, 0];
             % person_2 = PlaceObject('personMaleCasual.ply', person_2_Pos); 
@@ -291,12 +291,12 @@ classdef RobotBaseball < handle
                 CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
+                    balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
                 else
                     input("please disengage emergency stop before continuing")
                 end
-                balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                balls.ballModel{1}.animate(0);
-                drawnow();
             end
             
             % 1.2 Action to throw the ball
@@ -313,35 +313,33 @@ classdef RobotBaseball < handle
                     CheckCollision(self, self.KR);
                     if strcmp(self.eStopApp.systemState, 'running')
                         self.KR.model.animate(qMatrix(i,:));
+                        if self.steps/1.36 >= i
+                          balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                          balls.ballModel{1}.animate(0);
+                          drawnow();
+                          
+                          %currently unused
+                          % if i == self.steps/1.36
+                          %     ballStart = self.KR.model.fkine(qMatrix(i,:));
+                          % end
+                        end
+                        if i > self.steps/1.36
+                                  % reset orientation of ball so we can control it. Can do
+                                  % in a function later
+                                  ballPos = balls.ballModel{1}.base.T;
+                                  newBallPos = eye(4);
+                                  newBallPos(1:3,4) = ballPos(1:3,4);
+                                  balls.ballModel{1}.base = newBallPos;
+                
+                                  % Animate it
+                                  balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                                  balls.ballModel{1}.animate(0);
+                                  drawnow();
+                        end
+                    drawnow();
                     else
                         input("please disengage emergency stop before continuing")
-                    end
-                    if self.steps/1.36 >= i
-                      balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                      balls.ballModel{1}.animate(0);
-                      drawnow();
-                      
-                      %currently unused
-                      % if i == self.steps/1.36
-                      %     ballStart = self.KR.model.fkine(qMatrix(i,:));
-                      % end
-                    end
-                    if i > self.steps/1.36
-                              % reset orientation of ball so we can control it. Can do
-                              % in a function later
-                              ballPos = balls.ballModel{1}.base.T;
-                              newBallPos = eye(4);
-                              newBallPos(1:3,4) = ballPos(1:3,4);
-                              balls.ballModel{1}.base = newBallPos;
-            
-                              % Animate it
-                              balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                              balls.ballModel{1}.animate(0);
-                              drawnow();
-                    end
-            
-                    drawnow();
-            
+                    end           
             end
 
             urq1 = self.UR.model.getpos();
@@ -361,22 +359,19 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
+                    if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.animate(0);
+                    else
+                        hit1Flag = 1;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                        balls.ballModel{1}.animate(0);
+                    end
                         drawnow();
                     end
                 else
                     input("please disengage emergency stop before continuing")
-                end
-                    
-                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                else
-                    hit1Flag = 1;
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                end
+                end              
             end
             
             urq1 = self.UR.model.getpos();
@@ -395,20 +390,18 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
+                    if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.animate(0);
+                    else
+                        hit1Flag = 1;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                        balls.ballModel{1}.animate(0);
+                    end
                         drawnow();
                     end
                 else
                     input("please disengage emergency stop before continuing")
-                end
-                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                else
-                    hit1Flag = 1;
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
                 end
             end
             for i = 1:self.steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
@@ -462,12 +455,12 @@ classdef RobotBaseball < handle
                 CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
+                    balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                    balls.ballModel{1}.animate(0);
+                    drawnow();
                 else
                     input("please disengage emergency stop before continuing")
                 end
-                balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                balls.ballModel{1}.animate(0);
-                drawnow();
             end
             
             % 1.2 Action to throw the ball
@@ -484,35 +477,30 @@ classdef RobotBaseball < handle
                     CheckCollision(self, self.KR);
                     if strcmp(self.eStopApp.systemState, 'running')
                         self.KR.model.animate(qMatrix(i,:));
+                        if self.steps/1.36 >= i
+                          balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
+                          balls.ballModel{1}.animate(0);                     
+                          %currently unused
+                          % if i == self.steps/1.36
+                          %     ballStart = self.KR.model.fkine(qMatrix(i,:));
+                          % end
+                        end
+                        if i > self.steps/1.36
+                          % reset orientation of ball so we can control it. Can do
+                          % in a function later
+                          ballPos = balls.ballModel{1}.base.T;
+                          newBallPos = eye(4);
+                          newBallPos(1:3,4) = ballPos(1:3,4);
+                          balls.ballModel{1}.base = newBallPos;
+        
+                          % Animate it
+                          balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                          balls.ballModel{1}.animate(0);
+                        end
+                    drawnow();   
                     else
                         input("please disengage emergency stop before continuing")
-                    end
-                    if self.steps/1.36 >= i
-                      balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
-                      balls.ballModel{1}.animate(0);
-                      drawnow();
-                      
-                      %currently unused
-                      % if i == self.steps/1.36
-                      %     ballStart = self.KR.model.fkine(qMatrix(i,:));
-                      % end
-                    end
-                    if i > self.steps/1.36
-                              % reset orientation of ball so we can control it. Can do
-                              % in a function later
-                              ballPos = balls.ballModel{1}.base.T;
-                              newBallPos = eye(4);
-                              newBallPos(1:3,4) = ballPos(1:3,4);
-                              balls.ballModel{1}.base = newBallPos;
-            
-                              % Animate it
-                              balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                              balls.ballModel{1}.animate(0);
-                              drawnow();
-                    end
-            
-                    drawnow();
-            
+                    end  
             end
 
             urq1 = self.UR.model.getpos();
@@ -533,22 +521,19 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
-                        drawnow();
                     end
+                    if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.animate(0);
+                    else
+                        hit1Flag = 1;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                        balls.ballModel{1}.animate(0);
+                    end
+                drawnow();
                 else
                     input("please disengage emergency stop before continuing")
-                end
-                    
-                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                else
-                    hit1Flag = 1;
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                end
+                end       
             end
             
             urq1 = self.UR.model.getpos();
@@ -568,20 +553,18 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
-                        drawnow();
                     end
+                    if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.animate(0);
+                    else
+                        hit1Flag = 1;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
+                        balls.ballModel{1}.animate(0);
+                    end
+                drawnow()    
                 else
                     input("please disengage emergency stop before continuing")
-                end
-                if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
-                else
-                    hit1Flag = 1;
-                    balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballHit;
-                    balls.ballModel{1}.animate(0);
-                    drawnow();
                 end
             end
             for i = 1:self.steps % 3rd part of throw (as 30 steps doesnt get ball to the end)
@@ -720,23 +703,28 @@ classdef RobotBaseball < handle
         
             input('Start Light Curtain Test, press enter:')
             for i = 1:personSteps
+                  if strcmp(self.eStopApp.systemState, 'running')
+                        self.checkLightCurtainCollision();
+    
+                        % Update position of the person
+                        person_light_Pos = person_light_Pos + stepSize;
+                    
+                        % Calculate the new vertices based on the original position
+                        new_verts = original_verts;
+                        new_verts(:, 1:3) = new_verts(:, 1:3) + repmat((person_light_Pos - A), size(new_verts, 1), 1);
+                    
+                        % Update verticies of person
+                        set(person_light, 'Vertices', new_verts(:, 1:3));
+                    
+                        % Update the position of the person in EnvironmentObjects
+                        % array
+                        self.EnvironmentObjects(end).Position = person_light_Pos;
+                        pause(0.1);
+                else
+                    input("please disengage emergency stop before continuing")
+                end
                 
-                self.checkLightCurtainCollision();
-
-                % Update position of the person
-                person_light_Pos = person_light_Pos + stepSize;
-            
-                % Calculate the new vertices based on the original position
-                new_verts = original_verts;
-                new_verts(:, 1:3) = new_verts(:, 1:3) + repmat((person_light_Pos - A), size(new_verts, 1), 1);
-            
-                % Update verticies of person
-                set(person_light, 'Vertices', new_verts(:, 1:3));
-            
-                % Update the position of the person in EnvironmentObjects
-                % array
-                self.EnvironmentObjects(end).Position = person_light_Pos;
-                pause(0.1);
+                
             end
         end
 
@@ -760,11 +748,7 @@ classdef RobotBaseball < handle
             normal = cross(direction, [0, 0, 1]);
             
             for j = 1:length(self.EnvironmentObjects)
-                if strcmp(self.eStopApp.systemState, 'running')
-                        
-                else
-                    input("please disengage emergency stop before continuing")
-                end
+              
                 objPos = self.EnvironmentObjects(j).Position';
                 objRadius = self.EnvironmentObjects(j).Radius;
                 
