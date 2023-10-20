@@ -14,7 +14,14 @@ function self = KR6R700CR(baseTr) % Constructor to create instance (model)
             end
             self.model.base = self.model.base.T * baseTr; %* trotx(pi/2) %* troty(pi/2);
             
-            self.PlotAndColourRobot();         
+            self.PlotAndColourRobot();     
+            
+            surface_h = findobj(self.axis_h, 'Type', 'surface', 'Tag', 'tiled_floor');
+            % Delete the surface if found
+            if ~isempty(surface_h)
+                delete(surface_h);
+                self.surfaceAdded = false;
+            end
         end
 
 %% Create the robot model
