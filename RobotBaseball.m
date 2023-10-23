@@ -8,15 +8,15 @@ classdef RobotBaseball < handle
         KRJointAngles;
         UR;
         URJointAngles;
-       
+        
         EStopFlag = false;
         eStopApp;
         steps = 30;
-        steps1;
         RmrcTraj;
         baseTransformUR3;
         HardStop;
         buttonPin = 'D2';
+
 
     end
 
@@ -24,7 +24,6 @@ classdef RobotBaseball < handle
         %% cthrow the ball
         function self = RobotBaseball()
             close all force;
-
             clc;
             clf;
             
@@ -33,9 +32,10 @@ classdef RobotBaseball < handle
             % self.HardStop = arduino('COM5', 'Uno');
             % configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
+            self.RmrcTraj = nan(self.steps,6); 
             self.Environment = RobotBaseballEnvironment();
             self.BuildRobots();
-%             self.TestLightCurtain();
+            % self.TestLightCurtain();
             input('press enter to play baseball');
             
             % self.PitchBall();
@@ -44,8 +44,7 @@ classdef RobotBaseball < handle
 
         end
 
-        
-        
+       
         %%
         function BuildRobots(self)
             hold on;
@@ -68,7 +67,6 @@ classdef RobotBaseball < handle
         end
 
       
-
         %%
         % Batter in position
         function RMRC(self, robot, goal, jointGuess)  
@@ -76,19 +74,19 @@ classdef RobotBaseball < handle
             T1 = robot.model.fkine(q).T;       % First pose
 
             M = [1 1 1 zeros(1,3)];                         % Masking Matrix
-            
+
             x1 = [robot.model.fkine(q).t(1);robot.model.fkine(q).t(2);robot.model.fkine(q).t(3)];
             x2 = goal;
             deltaT = 0.05;     
-            
+
             x = zeros(3,self.steps); % zeros for columns 1 to steps. Stores x and y and z positions for each step of the trajectory
             s = lspb(0,1,self.steps);                                 % Create interpolation scalar
             for i = 1:self.steps
                 x(:,i) = x1*(1-s(i)) + s(i)*x2; % x position at each step                 % Create trajectory in x-y plane
             end
- 
+
             self.RmrcTraj(1,:) = robot.model.ikine(T1, 'q0', jointGuess, 'mask', M);   % sets the inital joint angle              % Solve for joint angles
-      
+
             for i = 1:self.steps-1
                 xdot = (x(:,i+1) - x(:,i))/deltaT;   % calculates velocity at each position by getting change between next and current position and dividing by time step                          % Calculate velocity at discrete time step
                 xdot = [xdot' 0 0 0];
@@ -101,29 +99,26 @@ classdef RobotBaseball < handle
         end   
 
         %% 
-         function WaveBat(self, robot)  
-            
+         function WaveBat(self, robot)        
             t = 10;             % Total time (s)
-            deltaT = 0.02*5;      % Control frequency
-            self.steps1 = t/deltaT;   % No. of steps for simulation
-            % delta = 2*pi/steps1; % Small angle change
+            deltaT = t/self.steps;      % Control frequency
             epsilon = 0.1;      % Threshold value for manipulability/Damped Least Squares
             W = diag([1 1 1 0.1 0.1 0.1]);    % Weighting matrix for the velocity vector
             
             % 1.2) Allocate array data
-            m = zeros(self.steps1,1);             % Array for Measure of Manipulability
-            qMatrix = zeros(self.steps1,6);       % Array for joint anglesR
-            qdot = zeros(self.steps1,6);          % Array for joint velocities
-            theta = zeros(3,self.steps1);         % Array for roll-pitch-yaw angles
-            x = zeros(3,self.steps1);             % Array for x-y-z trajectory
-            positionError = zeros(3,self.steps1); % For plotting trajectory error
-            angleError = zeros(3,self.steps1);    % For plotting trajectory error
+            m = zeros(self.steps,1);             % Array for Measure of Manipulability
+            qMatrix = zeros(self.steps,6);       % Array for joint anglesR
+            qdot = zeros(self.steps,6);          % Array for joint velocities
+            theta = zeros(3,self.steps);         % Array for roll-pitch-yaw angles
+            x = zeros(3,self.steps);             % Array for x-y-z trajectory
+            positionError = zeros(3,self.steps); % For plotting trajectory error
+            angleError = zeros(3,self.steps);    % For plotting trajectory error
             radius = 0.5;
             
             % 1.3) Set up trajectory, initial pose
-            % s = lspb(0,1,steps1);                % Trapezoidal trajectory scalar
-            thetaSemiCircle = linspace(0, pi, self.steps1); % Model a semi circle for the UR3 to wave its bat
-            for i = 1:self.steps1
+            % s = lspb(0,1,self.steps);                % Trapezoidal trajectory scalar
+            thetaSemiCircle = linspace(0, pi, self.steps); % Model a semi circle for the UR3 to wave its bat
+            for i = 1:self.steps
                 x(1, i) = cos(thetaSemiCircle(i)) * radius + self.baseTransformUR3(1,4); % x-coordinate
                 x(2, i) = sin(thetaSemiCircle(i)) * radius + self.baseTransformUR3(2,4); % y-coordinate
                 x(3, i) = 0.8 + self.baseTransformUR3(3,4); % Fixed z-coordinate
@@ -137,7 +132,7 @@ classdef RobotBaseball < handle
             qMatrix(1,:) = robot.model.ikcon(T,q0);                                              % Solve joint angles to achieve first waypoint
             
             % 1.4) Track the trajectory with RMRC
-            for i = 1:self.steps1-1
+            for i = 1:self.steps-1
                 T = robot.model.fkine(qMatrix(i,:)).T;                                           % Get forward transformation at current joint state
                 deltaX = x(:,i+1) - T(1:3,4);                                         	% Get position error from next waypoint
                 Rd = rpy2r(theta(1,i+1),theta(2,i+1),theta(3,i+1));                     % Get next RPY angles, convert to rotation matrix
@@ -156,7 +151,7 @@ classdef RobotBaseball < handle
                 else
                     lambda = 0;
                 end
-                invJ = inv(J'*J + lambda *eye(6))*J';                                   % DLS Inverse
+                invJ = pinv(J'*J + lambda *eye(6))*J';                                   % DLS Inverse
                 qdot(i,:) = (invJ*xdot)';                                                % Solve the RMRC equation (you may need to transpose the         vector)
                 for j = 1:6                                                             % Loop through joints 1 to 6
                     if qMatrix(i,j) + deltaT*qdot(i,j) < robot.model.qlim(j,1)                     % If next joint angle is lower than joint limit...
@@ -171,11 +166,11 @@ classdef RobotBaseball < handle
             end
             
             % 1.5) Plot the results for debugging
-            figure(1)
+            % figure(1)
             % plotRMRC = plot3(x(1,:),x(2,:),x(3,:),'k.','LineWidth',0.2); % Track the line of the RMRC movement
 
             % UR = UR3Batter(baseTransformUR3);
-            MoveRobotForRMRC(self,robot,qMatrix);
+            MoveRobot(self,robot,qMatrix);
             % delete(plotRMRC)
 
         end  
@@ -191,6 +186,7 @@ classdef RobotBaseball < handle
             end
             MoveRobot(self,robot,qMatrix);      
         end
+
 
 
         %% 
@@ -222,14 +218,11 @@ classdef RobotBaseball < handle
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
             self.MoveRobot(self.KR, qMatrix);
-
-
-            % 1.1 Prepare to throw the ball
+               % 1.1 Prepare to throw the ball
             krq1 = krq2;
             krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000];
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
-
                  for i = 1:self.steps
                     qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
                  end
@@ -265,11 +258,6 @@ classdef RobotBaseball < handle
                           balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
                           balls.ballModel{1}.animate(0);
                           drawnow();
-                          
-                          %currently unused
-                          % if i == self.steps/1.36
-                          %     ballStart = self.KR.model.fkine(qMatrix(i,:));
-                          % end
                         end
                         if i > self.steps/1.36
                                   % reset orientation of ball so we can control it. Can do
@@ -278,11 +266,9 @@ classdef RobotBaseball < handle
                                   newBallPos = eye(4);
                                   newBallPos(1:3,4) = ballPos(1:3,4);
                                   balls.ballModel{1}.base = newBallPos;
-                
                                   % Animate it
                                   balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                                   balls.ballModel{1}.animate(0);
-                                  drawnow();
                         end
                     drawnow();
                     else
@@ -359,7 +345,6 @@ classdef RobotBaseball < handle
             end
 
         end
-        
         %% Pitch Ball 2
      %1.0 Pick up ball
         function PitchBall2(self)
@@ -414,7 +399,7 @@ classdef RobotBaseball < handle
             
             % 1.2 Action to throw the ball
             krq1 = krq2;
-            krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272];
+            krq2 = [ 0    2.8162   -0.7898  0   -0.0122   -1.5272];
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
                  for i = 1:self.steps
@@ -503,7 +488,7 @@ classdef RobotBaseball < handle
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
                     end
-                    if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
+                    if ballXYZ(1,4) < UR3Base(1,4) && hit1Flag == 0
                         balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
                         balls.ballModel{1}.animate(0);
                     else
@@ -537,22 +522,8 @@ classdef RobotBaseball < handle
                 end
             end
         end
-        %% animate the robot for RMRC
-        function MoveRobotForRMRC(self, robot, qMatrix)
-            for i = 1:self.steps1
-                % self.checkButtonState();
-                CheckCollision(self, robot);
-                if strcmp(self.eStopApp.systemState, 'running')
-                        robot.model.animate(qMatrix(i,:));
-                        drawnow();
-                        pause(0.05); 
-                else
-                    input("please disengage emergency stop before continuing")
-                end
-            end
-        end
-   
-        %% GetLinkPoses
+
+   %% GetLinkPoses
         function [ transforms ] = GetLinkPoses(~, robot)
             q = robot.model.getpos();
             links = robot.model.links;
@@ -625,22 +596,12 @@ classdef RobotBaseball < handle
             end
         end
 
-    %% emergency stop if collission or e-stop button is pressed
-        % function EmergencyStop(self, flag)
-        %         % Check if the emergency stop flag is set
-        %         self.EStopFlag = flag;
-        %         if self.EStopFlag
-        %             input('Emergency stop triggered. Press any key to undo (we should reset here....or do something dynamic in future') % wait until user is happy to continue
-        %             self.EStopFlag = false;
-        %         end
-        %     end
-
 %%
         function TestLightCurtain(self)
             personSteps = 200; 
         
-            B = [12, 3.8, 0];
-            A = [12, -8, 0];
+            B = [5, -5, 0];
+            A = [5, -10 ,0];
             stepSize = (B - A) / personSteps; %step length for each coordinate
         
             person_light_Pos = A;
@@ -653,7 +614,7 @@ classdef RobotBaseball < handle
         
             input('Start Light Curtain Test, press enter:')
             for i = 1:personSteps
-                  if strcmp(self.eStopApp.systemState, 'running')
+                 if strcmp(self.eStopApp.systemState, 'running')
                         self.checkLightCurtainCollision();
     
                         % Update position of the person
@@ -680,9 +641,9 @@ classdef RobotBaseball < handle
 
         %%
         function checkLightCurtainCollision(self)
-            pt1 = [10.7, -2.2, 0];
-            pt2 = [13.9, -2.2, 0];
-
+            pt1 = [3, -10, 0];
+            pt2 = [7, -4, 0];
+            
             % Ensure pt1 and pt2 are row vectors
             if size(pt1, 1) > 1
                 pt1 = pt1';
@@ -711,7 +672,7 @@ classdef RobotBaseball < handle
                 distanceToPlane = dot(normal, objPos - pt1) / norm(normal);
                 
                  % Check if the object's radius intersects the plane
-                if abs(distanceToPlane) <= objRadius-0.4
+                if abs(distanceToPlane) <= objRadius
                     fprintf('Collision detected with Light Curtain for Object %d\n', j);
                     
                     self.eStopApp.systemState = 'eStopped';
@@ -721,6 +682,6 @@ classdef RobotBaseball < handle
                     hold on;
                 end
             end
-        end      
+        end
     end
 end
