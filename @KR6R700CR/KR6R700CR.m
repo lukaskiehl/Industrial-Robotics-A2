@@ -8,25 +8,13 @@ classdef KR6R700CR < RobotBaseClass
     methods
 %% Define robot Function 
 function self = KR6R700CR(baseTr) % Constructor to create instance (model)
-			if nargin < 3
-                if nargin == 2
-                    error('If you set useTool you must pass in the toolFilename as well');
-                elseif nargin == 0 % Nothing passed
-                    baseTr = transl(0,0,0);  
-                end             
-            else % All passed in 
-                self.useTool = useTool;
-                toolTrData = load([toolFilename,'.mat']);
-                self.toolTr = toolTrData.tool;
-                self.toolFilename = [toolFilename,'.ply'];
+			self.CreateModel();
+            if nargin < 1			
+				baseTr = eye(4)*transl(0,0,0.2);				
             end
-          
-            self.CreateModel();
-			self.model.base = self.model.base.T * baseTr;
-            self.model.tool = self.toolTr;
-            self.PlotAndColourRobot();
-
-            drawnow  
+            self.model.base = self.model.base.T * baseTr; %* trotx(pi/2) %* troty(pi/2);
+            
+            self.PlotAndColourRobot();     
             
             surface_h = findobj(self.axis_h, 'Type', 'surface', 'Tag', 'tiled_floor');
             % Delete the surface if found
