@@ -189,27 +189,20 @@ classdef RobotBaseball < handle
 
 
 
-        %% 
+        %% Pitch Ball 1
         %1.0 Pick up ball
         function PitchBall(self)
-            qpasser1 = [0 2.5598 0.4145 0 0 0];
+            qpasser1 = [0 2.5598 0.4145 0 0 0]; % Initial guess for first KR6 ikcon
 
             UR3Base = self.UR.model.base.T;
-            % goal = UR3Base*trotz(pi/2);
-            % goal = goal(1:3,4)';
-            % goal = [11; 0.5; 0.75];
-            % self.RMRC(self.UR, goal, zeros(1,6));
-            % self.MoveRobot(self.UR, self.RmrcTraj);
-
             self.WaveBat(self.UR) % UR3 waves the bat
             self.ReturnToStart(self.UR) % UR3 returns to start
 
-
             UR3reaction = 2;
-            ballTransl = transl(0.2,0,-0);
-            ballHit = transl(-0.2,-0.2,0.17);
-            hit1Flag = 0;
-            balls = RobotBalls;
+            ballThrow = transl(0.2,0,-0); % Ball throw translation
+            ballHit = transl(-0.2,-0.2,0.17); % Ball hit translation
+            hit1Flag = 0; % Hitflag to change between throw and hit
+            balls = RobotBalls; 
             krq1 = zeros(1,6);
             krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
@@ -260,14 +253,13 @@ classdef RobotBaseball < handle
                           drawnow();
                         end
                         if i > self.steps/1.36
-                                  % reset orientation of ball so we can control it. Can do
-                                  % in a function later
+                                  % Reset orientation of ball so we can control it
                                   ballPos = balls.ballModel{1}.base.T;
                                   newBallPos = eye(4);
                                   newBallPos(1:3,4) = ballPos(1:3,4);
                                   balls.ballModel{1}.base = newBallPos;
                                   % Animate it
-                                  balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                                  balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                                   balls.ballModel{1}.animate(0);
                         end
                     drawnow();
@@ -293,8 +285,9 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
+                    end
                     if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                         balls.ballModel{1}.animate(0);
                     else
                         hit1Flag = 1;
@@ -302,7 +295,6 @@ classdef RobotBaseball < handle
                         balls.ballModel{1}.animate(0);
                     end
                         drawnow();
-                    end
                 else
                     input("please disengage emergency stop before continuing")
                 end              
@@ -324,8 +316,9 @@ classdef RobotBaseball < handle
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction
                         self.UR.model.animate(qMatrix(i,:));
+                    end
                     if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                         balls.ballModel{1}.animate(0);
                     else
                         hit1Flag = 1;
@@ -333,7 +326,7 @@ classdef RobotBaseball < handle
                         balls.ballModel{1}.animate(0);
                     end
                         drawnow();
-                    end
+                    
                 else
                     input("please disengage emergency stop before continuing")
                 end
@@ -343,7 +336,6 @@ classdef RobotBaseball < handle
                 balls.ballModel{1}.animate(0);
                 drawnow();
             end
-
         end
         %% Pitch Ball 2
      %1.0 Pick up ball
@@ -351,19 +343,12 @@ classdef RobotBaseball < handle
             qpasser1 = [0 2.5598 0.4145 0 0 0];
 
             UR3Base = self.UR.model.base.T;
-            UR3Base = UR3Base*transl(-1,0,0);
-            % goal = UR3Base*trotz(pi/2);
-            % goal = goal(1:3,4)';
-            % goal = [11; 0.5; 0.75];
-            % self.RMRC(self.UR, goal, zeros(1,6));
-            % self.MoveRobot(self.UR, self.RmrcTraj);
-
+            UR3Base(1,4) = UR3Base(1,4) - 0.2; % Needed to look like ball hits bat at right moment
             self.WaveBat(self.UR) % UR3 waves the bat
             self.ReturnToStart(self.UR) % UR3 returns to start
 
-
             UR3reaction = 2;
-            ballTransl = transl(0.2,0,-0);
+            ballThrow = transl(0.2,0,-0);
             ballHit = transl(-0.2,-0.2,0.17);
             hit1Flag = 0;
             balls = RobotBalls;
@@ -414,21 +399,15 @@ classdef RobotBaseball < handle
                         if self.steps/1.36 >= i
                           balls.ballModel{1}.base = self.KR.model.fkine(qMatrix(i,:));
                           balls.ballModel{1}.animate(0);                     
-                          %currently unused
-                          % if i == self.steps/1.36
-                          %     ballStart = self.KR.model.fkine(qMatrix(i,:));
-                          % end
                         end
                         if i > self.steps/1.36
-                          % reset orientation of ball so we can control it. Can do
-                          % in a function later
+                          % Reset orientation of ball so we can control it
                           ballPos = balls.ballModel{1}.base.T;
                           newBallPos = eye(4);
                           newBallPos(1:3,4) = ballPos(1:3,4);
                           balls.ballModel{1}.base = newBallPos;
-        
                           % Animate it
-                          balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                          balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                           balls.ballModel{1}.animate(0);
                         end
                     drawnow();   
@@ -439,8 +418,7 @@ classdef RobotBaseball < handle
 
             urq1 = self.UR.model.getpos();
             hitPos2 = transl(UR3Base(1,4)-2*0.50819,-0.50819,0.7466)*troty(pi);%*trotx(-pi/2);
-            % urq2 = self.UR.model.ikcon(hitPos2);
-             urq2 = deg2rad([-180 0 0 0 0 0]);
+            urq2 = deg2rad([-180 0 0 0 0 0]);
             
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
@@ -457,7 +435,7 @@ classdef RobotBaseball < handle
                         self.UR.model.animate(qMatrix(i,:));
                     end
                     if ballXYZ(1,4) <= UR3Base(1,4) && hit1Flag == 0
-                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                         balls.ballModel{1}.animate(0);
                     else
                         hit1Flag = 1;
@@ -471,8 +449,7 @@ classdef RobotBaseball < handle
             end
             
             urq1 = self.UR.model.getpos();
-            % urq2 = self.UR.model.ikcon(hitPos2);
-             urq2 = deg2rad([-180 0 0 0 0 0]);
+            urq2 = deg2rad([-180 0 0 0 0 0]);
             
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
@@ -489,7 +466,7 @@ classdef RobotBaseball < handle
                         self.UR.model.animate(qMatrix(i,:));
                     end
                     if ballXYZ(1,4) < UR3Base(1,4) && hit1Flag == 0
-                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballTransl;
+                        balls.ballModel{1}.base = balls.ballModel{1}.base.T*ballThrow;
                         balls.ballModel{1}.animate(0);
                     else
                         hit1Flag = 1;
