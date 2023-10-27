@@ -452,11 +452,11 @@ classdef RobotBaseball < handle
         end
 
 %%
-        function TestLightCurtain(self)
+           function TestLightCurtain(self)
             personSteps = 200; 
         
-            B = [5, -5, 0];
-            A = [5, -10 ,0];
+            B = [12, 3.8, 0];
+            A = [12, -8, 0];
             stepSize = (B - A) / personSteps; %step length for each coordinate
         
             person_light_Pos = A;
@@ -469,7 +469,7 @@ classdef RobotBaseball < handle
         
             input('Start Light Curtain Test, press enter:')
             for i = 1:personSteps
-                 if strcmp(self.eStopApp.systemState, 'running')
+                  if strcmp(self.eStopApp.systemState, 'running')
                         self.checkLightCurtainCollision();
     
                         % Update position of the person
@@ -496,9 +496,9 @@ classdef RobotBaseball < handle
 
         %%
         function checkLightCurtainCollision(self)
-            pt1 = [3, -10, 0];
-            pt2 = [7, -4, 0];
-            
+            pt1 = [10.7, -2.2, 0];
+            pt2 = [13.9, -2.2, 0];
+
             % Ensure pt1 and pt2 are row vectors
             if size(pt1, 1) > 1
                 pt1 = pt1';
@@ -527,7 +527,7 @@ classdef RobotBaseball < handle
                 distanceToPlane = dot(normal, objPos - pt1) / norm(normal);
                 
                  % Check if the object's radius intersects the plane
-                if abs(distanceToPlane) <= objRadius
+                if abs(distanceToPlane) <= objRadius-0.4
                     fprintf('Collision detected with Light Curtain for Object %d\n', j);
                     
                     self.eStopApp.systemState = 'eStopped';
@@ -537,6 +537,6 @@ classdef RobotBaseball < handle
                     hold on;
                 end
             end
-        end
+        end      
     end
 end
