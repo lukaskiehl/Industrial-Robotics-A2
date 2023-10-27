@@ -29,7 +29,10 @@ classdef RobotBaseball < handle
             
             hold on;
             % self.clearArduino();
-            % self.HardStop = arduino('COM5', 'Uno');
+            % % For PC: 
+            % self.HardStop = arduino('COM5', 'Uno'); 
+            % % for Mac: 
+            % self.HardStop= arduino('/dev/tty.usbserial-14410', 'Uno');
             % configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
             self.RmrcTraj = nan(self.steps,6); 
@@ -437,7 +440,7 @@ classdef RobotBaseball < handle
         %%
         function checkButtonState(self)
             % Check for button press from Arduino
-            % buttonState = readDigitalPin(self.HardStop, self.buttonPin);
+            buttonState = readDigitalPin(self.HardStop, self.buttonPin);
             % If button is pressed, change systemState to 'eStopped'
             if buttonState == 0
                 self.eStopApp.systemState = 'eStopped';
