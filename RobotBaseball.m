@@ -52,7 +52,7 @@ classdef RobotBaseball < handle
         function BuildRobots(self)
             hold on;
             
-            self.baseTransformUR3 = transl(10.5,0,0.1) *trotz(pi/2); % Rotates UR3 by pi/2 back
+            self.baseTransformUR3 = transl(10.5,0.5,0.1) *trotz(pi/2); % Rotates UR3 by pi/2 back. Translate 0.5 across to center bat. 
             self.UR = UR3Batter(self.baseTransformUR3); %store UR3 robot in the UR3 
             self.URJointAngles = self.UR.model.getpos();
             self.UR.model.animate(self.KRJointAngles);
@@ -201,8 +201,7 @@ classdef RobotBaseball < handle
                     UR3Base = self.UR.model.base.T;
                     ballThrow = transl(0.2,0,-0); % Ball throw translation
                     ballHit = transl(-0.2,-0.2,0.17); % Ball hit translation
-                    hitPos1 = transl(UR3Base(1,4),0,0.7466)*trotx(pi/2)*trotz(-pi/2); % End eff position of UR3 for the hit
-                    urq2 = self.UR.model.ikcon(hitPos1);
+                    urq2 = deg2rad([-90 0 0 0 0 0]);
                 case 2 % Bat turns 180 deg. Hit successful.
                     UR3Base = self.UR.model.base.T;
                     UR3Base(1,4) = UR3Base(1,4) - 0.2; % Needed to look like ball hits bat at right moment
@@ -251,7 +250,7 @@ classdef RobotBaseball < handle
                  end
 
             for i = 1:self.steps
-                % self.checkButtonState();
+                % % % % % % % self.checkButtonState();
                 CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
