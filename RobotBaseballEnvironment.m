@@ -15,6 +15,7 @@ classdef RobotBaseballEnvironment < handle
             self.BuildPeople();
             self.PlaceExtinguisher();
             self.PlaceLightCurtain();
+            self.PlaceEStop();
 
         end
 
@@ -179,11 +180,18 @@ classdef RobotBaseballEnvironment < handle
         
         %% Place emergency stop wall mounted
         function PlaceEStop(self)
+            sf = 0.33;
             hold on;
-            eStop_1 = PlaceObject('emergencyStopButton.ply', [0.7, -0.5, +1.7]);
+            eStop_1 = PlaceObject('emergencyStopButton.ply', [10.5, 0.4, 2.85]/sf);
             verts = [get(eStop_1, 'Vertices'), ones(size(get(eStop_1, 'Vertices'), 1), 1)] * trotx(-pi/2);
-            verts(:, 1:3) = verts(:, 1:3) * 0.33; %scale 
+            verts(:, 1:3) = verts(:, 1:3) * sf; %scale 
             set(eStop_1, 'Vertices', verts(:, 1:3));
+            hold off;
+            hold on;
+            eStop_2 = PlaceObject('emergencyStopButton.ply', [10.5, -0.4, -2.75]/sf);
+            verts = [get(eStop_2, 'Vertices'), ones(size(get(eStop_1, 'Vertices'), 1), 1)] * trotx(pi/2);
+            verts(:, 1:3) = verts(:, 1:3) * sf; %scale 
+            set(eStop_2, 'Vertices', verts(:, 1:3));
             hold off;
         end
 
