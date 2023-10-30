@@ -8,11 +8,9 @@ classdef RobotBaseball < handle
         KRJointAngles;
         UR;
         URJointAngles;
-        
-        EStopFlag = false;
+
         eStopApp;
         steps = 30;
-        RmrcTraj;
         baseTransformUR3;
         HardStop;
         buttonPin = 'D2';
@@ -28,14 +26,13 @@ classdef RobotBaseball < handle
             clf;
             
             hold on;
-            % self.clearArduino();
+            self.clearArduino();
             % % For PC: 
             % self.HardStop = arduino('COM5', 'Uno'); 
             % % for Mac: 
-            % self.HardStop= arduino('/dev/tty.usbserial-14410', 'Uno');
-            % configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
+            self.HardStop= arduino('/dev/tty.usbserial-14410', 'Uno');
+            configurePin(self.HardStop, self.buttonPin, 'DigitalInput');
             self.eStopApp = eStop();
-            self.RmrcTraj = nan(self.steps,6); 
             self.Environment = RobotBaseballEnvironment();
             self.BuildRobots();
             % self.TestLightCurtain();
@@ -61,48 +58,11 @@ classdef RobotBaseball < handle
             self.KR = KR6R700CR(baseTransformKR6R700C); %store Kuka Robot in the 'KR' robot property.
             self.KRJointAngles = self.KR.model.getpos(); %store joint angles for use
             self.KR.model.animate(self.KRJointAngles); %Draw the robot
-            
-
-            % self.KR.model.links
-           
-            % self.KR.model.teach();
-            % self.UR.model.teach();
         end
 
-      
-        %%
-        % Batter in position
-        function RMRC(self, robot, goal, jointGuess)  
-            q = robot.model.getpos;
-            T1 = robot.model.fkine(q).T;       % First pose
 
-            M = [1 1 1 zeros(1,3)];                         % Masking Matrix
-
-            x1 = [robot.model.fkine(q).t(1);robot.model.fkine(q).t(2);robot.model.fkine(q).t(3)];
-            x2 = goal;
-            deltaT = 0.05;     
-
-            x = zeros(3,self.steps); % zeros for columns 1 to steps. Stores x and y and z positions for each step of the trajectory
-            s = lspb(0,1,self.steps);                                 % Create interpolation scalar
-            for i = 1:self.steps
-                x(:,i) = x1*(1-s(i)) + s(i)*x2; % x position at each step                 % Create trajectory in x-y plane
-            end
-
-            self.RmrcTraj(1,:) = robot.model.ikine(T1, 'q0', jointGuess, 'mask', M);   % sets the inital joint angle              % Solve for joint angles
-
-            for i = 1:self.steps-1
-                xdot = (x(:,i+1) - x(:,i))/deltaT;   % calculates velocity at each position by getting change between next and current position and dividing by time step                          % Calculate velocity at discrete time step
-                xdot = [xdot' 0 0 0];
-                J = robot.model.jacob0(self.RmrcTraj(i,:));            % Get the Jacobian at the current state
-                J = J(1:6,:);                           
-                qdot = pinv(J)*xdot'; % change in joint angles   (velocity of joint angles)                         % Solve velocitities via RMRC
-                self.RmrcTraj(i+1,:) =  self.RmrcTraj(i,:) + deltaT*qdot';                   % Update next joint state
-            end
-
-        end   
-
-        %% 
-         function WaveBat(self, robot)        
+        %% RMRC Movement to Wave Bat
+        function WaveBat(self, robot)   % Based on Lab 9     
             t = 10;             % Total time (s)
             deltaT = t/self.steps;      % Control frequency
             epsilon = 0.1;      % Threshold value for manipulability/Damped Least Squares
@@ -169,10 +129,8 @@ classdef RobotBaseball < handle
             end
             
             % 1.5) Plot the results for debugging
-            % figure(1)
             % plotRMRC = plot3(x(1,:),x(2,:),x(3,:),'k.','LineWidth',0.2); % Track the line of the RMRC movement
 
-            % UR = UR3Batter(baseTransformUR3);
             MoveRobot(self,robot,qMatrix);
             % delete(plotRMRC)
 
@@ -201,7 +159,7 @@ classdef RobotBaseball < handle
                     UR3Base = self.UR.model.base.T;
                     ballThrow = transl(0.2,0,-0); % Ball throw translation
                     ballHit = transl(-0.2,-0.2,0.17); % Ball hit translation
-                    urq2 = deg2rad([-90 0 0 0 0 0]);
+                    urq2 = deg2rad([-90 0 0 0 0 0]); % Final joint state of hit
                 case 2 % Bat turns 180 deg. Hit successful.
                     UR3Base = self.UR.model.base.T;
                     UR3Base(1,4) = UR3Base(1,4) - 0.2; % Needed to look like ball hits bat at right moment
@@ -236,21 +194,21 @@ classdef RobotBaseball < handle
             krq2 = self.KR.model.ikcon(balls.ballModel{1}.base, qpasser1);
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
-                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
-                 end
+            for i = 1:self.steps
+                   qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+            end
             self.MoveRobot(self.KR, qMatrix);
             % 1.1 Prepare to throw the ball
             krq1 = krq2;
             krq2 = [0    0.0818   -2.0944    0.0000   -0.0122    0.0000]; % preparing to throw pos of KR
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
-                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
-                 end
+            for i = 1:self.steps
+                  qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+            end
 
             for i = 1:self.steps
-                % % % % % % % self.checkButtonState();
+                self.checkButtonState();
                 CheckCollision(self, self.KR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     self.KR.model.animate(qMatrix(i,:));
@@ -267,12 +225,12 @@ classdef RobotBaseball < handle
             krq2 = [ 0    2.8162   -0.7898         0   -0.0122   -1.5272]; % throw pos of KR
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
-                 for i = 1:self.steps
-                    qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
-                 end
+            for i = 1:self.steps
+                   qMatrix(i,:) = (1-s(i))*krq1 + s(i)*krq2;
+            end
     
             for i = 1:self.steps
-                    % self.checkButtonState();
+                    self.checkButtonState();
                     CheckCollision(self, self.KR);
                     if strcmp(self.eStopApp.systemState, 'running')
                         self.KR.model.animate(qMatrix(i,:));
@@ -302,12 +260,12 @@ classdef RobotBaseball < handle
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
             for i = 1:self.steps
-                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+                  qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
             for i = 1:self.steps % 1st part of throw/hit (as 30 steps doesnt get to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                % self.checkButtonState();
+                self.checkButtonState();
                 CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction % if ball comes within 2m (UR3reaction) of UR3 it animates
@@ -332,12 +290,12 @@ classdef RobotBaseball < handle
             s = lspb(0,1,self.steps); % use trapezoidal velocity method from Lab 4.1
             qMatrix = nan(self.steps,6);
             for i = 1:self.steps
-                qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
+                  qMatrix(i,:) = (1-s(i))*urq1 + s(i)*urq2;
             end
 
             for i = 1:self.steps % 2nd part of throw/hit (as 30 steps doesnt get to the end)
                 ballXYZ = balls.ballModel{1}.base.T;
-                % self.checkButtonState();
+                self.checkButtonState();
                 CheckCollision(self, self.UR);
                 if strcmp(self.eStopApp.systemState, 'running')
                     if ballXYZ(1,4) >= UR3Base(1,4) - UR3reaction % if ball comes within 2m (UR3reaction) of UR3 it animates
@@ -368,7 +326,7 @@ classdef RobotBaseball < handle
         %% animate the robot
         function MoveRobot(self, robot, qMatrix)
             for i = 1:self.steps
-                % self.checkButtonState();
+                self.checkButtonState();
                 CheckCollision(self, robot);
                 if strcmp(self.eStopApp.systemState, 'running')
                         robot.model.animate(qMatrix(i,:));
